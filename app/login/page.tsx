@@ -129,6 +129,20 @@ export default function LoginPage() {
             </div>
           </div>
 
+          {/* Show error message if present */}
+          {typeof window !== "undefined" && new URLSearchParams(window.location.search).get("error") && (
+            <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">
+              {new URLSearchParams(window.location.search).get("error") === "auth_failed" 
+                ? "Authentication failed. Please try again."
+                : new URLSearchParams(window.location.search).get("error") === "no_code"
+                ? "No authorization code received. Please try signing in again."
+                : new URLSearchParams(window.location.search).get("error") === "no_session"
+                ? "Session creation failed. Please try again."
+                : `Error: ${new URLSearchParams(window.location.search).get("error")}`
+              }
+            </div>
+          )}
+
           <form onSubmit={handleEmailLogin} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
