@@ -6,6 +6,7 @@ import { Sparkles, LogOut } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { LogoutButton } from "@/components/logout-button"
+import { OllamaStatusIndicator } from "@/components/ollama-status-indicator"
 import Image from "next/image"
 
 // Force dynamic rendering for dashboard routes
@@ -39,6 +40,7 @@ export default async function DashboardLayout({
               <span className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
                 AppaPost
               </span>
+              <OllamaStatusIndicator />
             </Link>
           <div className="flex items-center gap-4">
             <ThemeToggle />
