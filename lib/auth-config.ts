@@ -1,33 +1,69 @@
 import { type NextAuthOptions } from "next-auth"
-import GoogleProvider from "next-auth/providers/google"
-import EmailProvider from "next-auth/providers/email"
+import CredentialsProvider from "next-auth/providers/credentials"
 import { db } from "@/lib/db"
 import { users } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 import { createId } from "@paralleldrive/cuid2"
 
-// Custom adapter implementation for Drizzle
-// Note: For production, consider using @auth/drizzle-adapter if available
-// or implement a full adapter following NextAuth adapter interface
+// Basic credentials for Apparely
+const APPARELY_CREDENTIALS = {
+  email: "apparelydotcoza@gmail.com",
+  password: "H@ppines5",
+}
 
 export const authOptions: NextAuthOptions = {
-  // Using JWT strategy - adapter not strictly required
-  // Users will be created/updated manually in callbacks
   providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    }),
-    EmailProvider({
-      server: {
-        host: process.env.EMAIL_SERVER_HOST,
-        port: Number(process.env.EMAIL_SERVER_PORT),
-        auth: {
-          user: process.env.EMAIL_SERVER_USER,
-          pass: process.env.EMAIL_SERVER_PASSWORD,
-        },
+    CredentialsProvider({
+      name: "Credentials",
+      credentials: {
+        email: { label: "Email", type: "email", placeholder: "your@email.com" },
+        password: { label: "Password", type: "password" },
       },
-      from: process.env.EMAIL_FROM,
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) {
+          return null
+        }
+
+        // Check credentials
+        if (
+          credentials.email === APPARELY_CREDENTIALS.email &&
+          credentials.password === APPARELY_CREDENTIALS.password
+        ) {
+          // Get or create user in database
+          const [existingUser] = await db
+            .select()
+            .from(users)
+            .where(eq(users.email, credentials.email))
+            .limit(1)
+
+          if (existingUser) {
+            return {
+              id: existingUser.id,
+              email: existingUser.email,
+              name: existingUser.name || "Apparely User",
+              image: existingUser.image,
+            }
+          }
+
+          // Create user if doesn't exist
+          const userId = createId()
+          await db.insert(users).values({
+            id: userId,
+            email: credentials.email,
+            name: "Apparely User",
+            image: null,
+          })
+
+          return {
+            id: userId,
+            email: credentials.email,
+            name: "Apparely User",
+            image: null,
+          }
+        }
+
+        return null
+      },
     }),
   ],
   pages: {
