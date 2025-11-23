@@ -4,6 +4,9 @@ import { db } from "@/lib/db"
 import { scheduledPosts, posts } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 
+// Force dynamic rendering
+export const dynamic = "force-dynamic"
+
 export default async function SchedulePage() {
   const user = await getCurrentUser()
   if (!user) return null

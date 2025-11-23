@@ -9,6 +9,9 @@ import Image from "next/image"
 import { PostToAllButton } from "@/components/post-to-all-button"
 import { Platform } from "@/types"
 
+// Force dynamic rendering
+export const dynamic = "force-dynamic"
+
 export default async function PostDetailPage({
   params,
 }: {

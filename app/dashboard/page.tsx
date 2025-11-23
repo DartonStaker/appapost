@@ -4,7 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { FileText, Calendar, CheckCircle, TrendingUp } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { toast } from "sonner"
+
+// Force dynamic rendering
+export const dynamic = "force-dynamic"
 
 export default async function DashboardPage() {
   const user = await getCurrentUser()

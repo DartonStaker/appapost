@@ -19,6 +19,9 @@ const platformIcons = {
   pinterest: ImageIcon,
 }
 
+// Force dynamic rendering
+export const dynamic = "force-dynamic"
+
 export default async function SettingsPage() {
   const user = await getCurrentUser()
   if (!user) return null

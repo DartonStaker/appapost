@@ -7,6 +7,9 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { LogoutButton } from "@/components/logout-button"
 
+// Force dynamic rendering for dashboard routes
+export const dynamic = "force-dynamic"
+
 export default async function DashboardLayout({
   children,
 }: {

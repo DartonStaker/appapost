@@ -8,6 +8,9 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import Image from "next/image"
 
+// Force dynamic rendering
+export const dynamic = "force-dynamic"
+
 export default async function PostsPage() {
   const user = await getCurrentUser()
   if (!user) return null
