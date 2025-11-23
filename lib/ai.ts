@@ -3,6 +3,8 @@ import axios from "axios"
 
 const GROK_API_KEY = process.env.GROK_API_KEY
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
+const OLLAMA_URL = process.env.OLLAMA_URL || "http://localhost:11434"
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "qwen3-vl:2b"
 
 // Lazy initialization of OpenAI client (only when needed and API key is available)
 function getOpenAIClient(): OpenAI | null {
@@ -44,10 +46,52 @@ const PLATFORM_LIMITS: Record<Platform, { charLimit: number; formats: string[] }
 }
 
 /**
- * Generate AI content using Grok (xAI) with fallback to OpenAI
+ * Generate AI content using Ollama (local, free) with fallback to Grok/OpenAI
  */
 async function callAI(prompt: string): Promise<string> {
-  // Try Grok first
+  const systemPrompt =
+    "You are a social media content creator for Apparely, a South African fashion brand. Create engaging, fun, and brand-appropriate content with SA flair. Always include relevant hashtags like #ApparelyCustom #MzansiFashion."
+
+  // Try Ollama first (local, free, unlimited)
+  try {
+    const response = await axios.post(
+      `${OLLAMA_URL}/api/chat`,
+      {
+        model: OLLAMA_MODEL,
+        messages: [
+          {
+            role: "system",
+            content: systemPrompt,
+          },
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+        stream: false,
+        options: {
+          temperature: 0.8,
+          num_predict: 2000,
+        },
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+        timeout: 30000, // 30 second timeout
+      }
+    )
+
+    const content = response.data?.message?.content || response.data?.response || ""
+    if (content) {
+      return content
+    }
+  } catch (error) {
+    // Ollama not available or error - fall through to cloud providers
+    console.warn("Ollama not available, falling back to cloud AI:", error)
+  }
+
+  // Fallback to Grok (xAI)
   if (GROK_API_KEY) {
     try {
       const response = await axios.post(
@@ -57,8 +101,7 @@ async function callAI(prompt: string): Promise<string> {
           messages: [
             {
               role: "system",
-              content:
-                "You are a social media content creator for Apparely, a South African fashion brand. Create engaging, fun, and brand-appropriate content with SA flair. Always include relevant hashtags like #ApparelyCustom #MzansiFashion.",
+              content: systemPrompt,
             },
             {
               role: "user",
@@ -91,8 +134,7 @@ async function callAI(prompt: string): Promise<string> {
         messages: [
           {
             role: "system",
-            content:
-              "You are a social media content creator for Apparely, a South African fashion brand. Create engaging, fun, and brand-appropriate content with SA flair. Always include relevant hashtags like #ApparelyCustom #MzansiFashion.",
+            content: systemPrompt,
           },
           {
             role: "user",
@@ -110,7 +152,7 @@ async function callAI(prompt: string): Promise<string> {
     }
   }
 
-  throw new Error("No AI API key configured (GROK_API_KEY or OPENAI_API_KEY required)")
+  throw new Error("No AI service available (Ollama, GROK_API_KEY, or OPENAI_API_KEY required)")
 }
 
 /**

@@ -43,7 +43,14 @@ EMAIL_FROM=noreply@appapost.com
 # ============================================
 # AI SERVICES (Optional)
 # ============================================
-XAI_API_KEY=your-xai-api-key
+# Local Ollama (Free, unlimited - recommended for development)
+# Install: https://ollama.com/download
+# Pull model: ollama pull qwen3-vl:2b
+OLLAMA_URL=http://localhost:11434
+OLLAMA_MODEL=qwen3-vl:2b
+
+# Cloud AI (Fallback if Ollama unavailable)
+GROK_API_KEY=your-grok-api-key
 OPENAI_API_KEY=your-openai-api-key
 
 # ============================================

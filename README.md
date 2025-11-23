@@ -6,7 +6,7 @@ AppaPost is a production-ready social media automation manager built exclusively
 
 ## 🚀 Features
 
-- **AI-Powered Content Generation**: Uses xAI's Grok API (with OpenAI GPT-4o-mini fallback) to generate witty, brand-perfect copy with South African flair
+- **AI-Powered Content Generation**: Uses local Ollama (free, unlimited) with qwen3-vl:2b model, with fallback to Grok/OpenAI for cloud deployment
 - **Multi-Platform Posting**: Automatically posts to Instagram, Facebook, X/Twitter, LinkedIn, TikTok, and Pinterest
 - **Smart Scheduling**: Beautiful drag-and-drop calendar interface for scheduling posts
 - **Approval Workflow**: Preview, edit, and approve posts before they go live
@@ -22,7 +22,7 @@ AppaPost is a production-ready social media automation manager built exclusively
 - **Styling**: Tailwind CSS + shadcn/ui
 - **Database**: Vercel Postgres (Drizzle ORM)
 - **Authentication**: NextAuth.js (Google + Email)
-- **AI**: xAI Grok API → OpenAI GPT-4o-mini fallback
+- **AI**: Ollama (local, free) → xAI Grok API → OpenAI GPT-4o-mini fallback
 - **Queue**: BullMQ with Upstash Redis (optional)
 - **Social APIs**: Meta Graph API, Twitter API v2, LinkedIn API, TikTok API, Pinterest API
 - **Deployment**: Vercel (optimized)
@@ -63,19 +63,35 @@ Add to `.env` as `NEXTAUTH_SECRET`
 5. Add authorized redirect URI: `http://localhost:3000/api/auth/callback/google`
 6. Copy Client ID and Secret to `.env`
 
-### 4. xAI Grok API
+### 4. Ollama (Local AI - Recommended for Development)
+
+**Free, unlimited, runs locally on your machine!**
+
+1. Install Ollama from https://ollama.com/download
+2. Pull the model: `ollama pull qwen3-vl:2b`
+3. Add to `.env.local`:
+   ```env
+   OLLAMA_URL=http://localhost:11434
+   OLLAMA_MODEL=qwen3-vl:2b
+   ```
+
+See `OLLAMA_SETUP.md` for detailed instructions!
+
+**Note**: For production/Vercel deployment, use cloud AI services (Together AI, Groq, or Hugging Face) - see `ENV_TEMPLATE.md`
+
+### 5. xAI Grok API (Cloud Fallback)
 
 1. Go to [xAI Console](https://console.x.ai/)
 2. Create an API key
-3. Add to `.env` as `XAI_API_KEY`
+3. Add to `.env` as `GROK_API_KEY`
 
-### 5. OpenAI (Fallback)
+### 6. OpenAI (Cloud Fallback)
 
 1. Go to [OpenAI Platform](https://platform.openai.com/)
 2. Create an API key
 3. Add to `.env` as `OPENAI_API_KEY`
 
-### 6. Social Media APIs
+### 7. Social Media APIs
 
 #### Instagram & Facebook (Meta Graph API)
 
@@ -113,7 +129,7 @@ Add to `.env` as `NEXTAUTH_SECRET`
 3. Get App ID and App Secret
 4. Generate access tokens
 
-### 7. Redis (Optional, for Queue)
+### 8. Redis (Optional, for Queue)
 
 #### Option A: Upstash Redis (Recommended)
 
