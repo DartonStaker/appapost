@@ -15,17 +15,19 @@ export default async function SchedulePage() {
   const supabase = await createClient()
 
   // Fetch queued posts from posting_queue table
-  const { data: queuedPosts, error } = await supabase
+  // First get all queue items, then filter by user's posts
+  const { data: allQueued, error } = await supabase
     .from("posting_queue")
     .select(`
       *,
-      posts (
+      posts!inner (
         id,
         title,
         excerpt,
         image_url,
         type,
-        status
+        status,
+        user_id
       ),
       post_variants (
         id,
@@ -33,27 +35,32 @@ export default async function SchedulePage() {
         variant_json
       )
     `)
-    .eq("posts.user_id", user.id)
     .in("status", ["queued", "processing"])
     .order("scheduled_time", { ascending: true })
 
+  // Filter by user_id (can't do this in Supabase query with nested filter)
+  const queuedPosts = allQueued?.filter((item: any) => item.posts?.user_id === user.id) || []
+
   // Fetch recently posted items
-  const { data: recentPosts } = await supabase
+  const { data: allRecent } = await supabase
     .from("posting_queue")
     .select(`
       *,
-      posts (
+      posts!inner (
         id,
         title,
         excerpt,
         image_url,
-        type
+        type,
+        user_id
       )
     `)
-    .eq("posts.user_id", user.id)
     .eq("status", "posted")
     .order("posted_at", { ascending: false })
-    .limit(10)
+    .limit(50)
+
+  // Filter by user_id
+  const recentPosts = allRecent?.filter((item: any) => item.posts?.user_id === user.id).slice(0, 10) || []
 
   const platformColors: Record<string, string> = {
     instagram: "bg-gradient-to-br from-purple-500 to-pink-500",
