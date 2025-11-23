@@ -10,6 +10,10 @@ export const metadata: Metadata = {
   title: "AppaPost - Your Apparely Posts on Autopilot",
   description: "Automated social media management for Apparely - South Africa's custom apparel brand",
   keywords: ["social media", "automation", "Apparely", "South Africa", "fashion"],
+  icons: {
+    icon: "/icon.svg",
+    apple: "/icon.svg",
+  },
 }
 
 export default function RootLayout({
