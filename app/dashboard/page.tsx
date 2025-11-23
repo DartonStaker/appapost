@@ -11,19 +11,21 @@ export default async function DashboardPage() {
   const user = await getCurrentUser()
   if (!user) return null
 
-  const [totalPosts, scheduledCount, postedCount, activeAccounts] = await Promise.all([
-    db.select({ count: count() }).from(posts),
-    db.select({ count: count() }).from(scheduledPosts).where(eq(scheduledPosts.status, "scheduled")),
-    db.select({ count: count() }).from(scheduledPosts).where(eq(scheduledPosts.status, "posted")),
-    db.select({ count: count() }).from(socialAccounts).where(eq(socialAccounts.isActive, true)),
-  ])
+  try {
+    const [totalPosts, scheduledCount, postedCount, activeAccounts] = await Promise.all([
+      db.select({ count: count() }).from(posts).catch(() => [{ count: 0 }]),
+      db.select({ count: count() }).from(scheduledPosts).where(eq(scheduledPosts.status, "scheduled")).catch(() => [{ count: 0 }]),
+      db.select({ count: count() }).from(scheduledPosts).where(eq(scheduledPosts.status, "posted")).catch(() => [{ count: 0 }]),
+      db.select({ count: count() }).from(socialAccounts).where(eq(socialAccounts.isActive, true)).catch(() => [{ count: 0 }]),
+    ])
 
-  const recentPosts = await db
-    .select()
-    .from(posts)
-    .where(eq(posts.userId, user.id!))
-    .orderBy(desc(posts.createdAt))
-    .limit(5)
+    const recentPosts = await db
+      .select()
+      .from(posts)
+      .where(eq(posts.userId, user.id!))
+      .orderBy(desc(posts.createdAt))
+      .limit(5)
+      .catch(() => [])
 
   return (
     <div className="space-y-8">
@@ -135,5 +137,25 @@ export default async function DashboardPage() {
       </div>
     </div>
   )
+  } catch (error) {
+    console.error("Error loading dashboard:", error)
+    return (
+      <div className="space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold">Dashboard</h1>
+          <p className="text-muted-foreground mt-2">
+            Welcome back! Here&apos;s what&apos;s happening with your social media automation.
+          </p>
+        </div>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground">
+              Unable to load dashboard data. Please try refreshing the page.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 }
 
