@@ -93,7 +93,7 @@ export default async function SettingsPage() {
               <p className="text-xs text-muted-foreground mb-2">
                 Need to connect manually? Some platforms like Twitter require manual token entry.
               </p>
-              <Link href="/api/connect/manual">
+              <Link href="/dashboard/connect/manual">
                 <Button variant="outline" size="sm" className="w-full">
                   Connect Manually
                 </Button>
