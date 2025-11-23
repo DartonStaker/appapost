@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 
 /**
  * Simple React hook to check Ollama status live
+ * Uses hybrid approach: tries client-side direct check first, falls back to API route
  * 
  * @example
  * ```tsx
@@ -19,14 +20,38 @@ export function useOllama() {
 
   useEffect(() => {
     async function checkStatus() {
+      // Try direct client-side check first (works when browser can reach localhost)
+      try {
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 2000) // 2 second timeout
+
+        const response = await fetch("http://localhost:11434/api/tags", {
+          method: "GET",
+          signal: controller.signal,
+          mode: "cors", // Explicitly request CORS
+        })
+
+        clearTimeout(timeoutId)
+
+        if (response.ok) {
+          const data = await response.json()
+          const models = data.models || []
+          setIsOnline(models.length > 0)
+          return // Success, exit early
+        }
+      } catch (error: any) {
+        // CORS or connection error - try API route as fallback
+        // (This handles cases where CORS blocks direct access)
+      }
+
+      // Fallback: use API route (works in dev, but won't work on Vercel for localhost)
       try {
         const response = await fetch("/api/ollama/status", {
           cache: "no-store",
         })
         const data = await response.json()
-        setIsOnline(data.online === true) // Explicitly check for true
+        setIsOnline(data.online === true)
       } catch (error) {
-        console.warn("[useOllama] Status check failed:", error)
         setIsOnline(false)
       }
     }
