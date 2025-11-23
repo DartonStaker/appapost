@@ -24,9 +24,11 @@ function LoginContent() {
     const error = searchParams.get("error")
     if (error) {
       const errorMessages: Record<string, string> = {
-        auth_failed: "Authentication failed. Please try again.",
+        auth_failed: "Authentication failed. Please check your Supabase configuration and try again.",
         no_code: "No authorization code received. Please try signing in again.",
-        no_session: "Session creation failed. Please try again.",
+        no_session: "Session creation failed. Please check your Supabase API key and redirect URL configuration.",
+        configuration_error: "Configuration error: Supabase credentials are missing. Please check your environment variables.",
+        "Invalid API key": "Invalid Supabase API key. Please verify NEXT_PUBLIC_SUPABASE_ANON_KEY in Vercel settings.",
       }
       setErrorMessage(errorMessages[error] || `Error: ${error}`)
       // Clear the error from URL after displaying
