@@ -84,18 +84,20 @@ export async function POST(request: NextRequest) {
 
     // Store variants in database
     // Note: Since schema has UNIQUE(post_id, platform), we store all variants for a platform as a JSON array
-    const variantInserts = []
-    for (const [platform, platformVariants] of Object.entries(variants)) {
-      if (platformVariants.length > 0) {
-        // Store all variants for this platform as an array in variant_json
-        variantInserts.push({
+    // Destructure to separate the _visionFailed flag from platform variants
+    const { _visionFailed, ...platformVariantsObj } = variants
+    
+    const variantInserts = Object.entries(platformVariantsObj).flatMap(([platform, vars]) => {
+      if (Array.isArray(vars) && vars.length > 0) {
+        return [{
           post_id: post_id,
           platform,
-          variant_json: platformVariants, // Store array of variants
+          variant_json: vars,
           is_selected: false,
-        })
+        }]
       }
-    }
+      return []
+    })
 
     if (variantInserts.length > 0) {
       const { error: insertError } = await supabase
@@ -108,14 +110,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Count total variants generated
-    const totalVariants = Object.values(variants).reduce((sum, platformVariants) => sum + platformVariants.length, 0)
+    // Count total variants generated (use platformVariantsObj to exclude _visionFailed)
+    const totalVariants = Object.values(platformVariantsObj).reduce((sum, platformVariants) => {
+      return sum + (Array.isArray(platformVariants) ? platformVariants.length : 0)
+    }, 0)
     
     // Determine which AI service was used (check logs or default to first available)
     const aiService = process.env.OLLAMA_URL ? "Ollama (local)" : process.env.GROK_API_KEY ? "Grok (xAI)" : process.env.OPENAI_API_KEY ? "OpenAI" : "Unknown"
 
-    // Check if vision failed (non-enumerable property)
-    const visionFailed = (variants as any)._visionFailed === true
+    // Check if vision failed (extracted from destructuring above)
+    const visionFailed = _visionFailed === true
 
     return NextResponse.json({
       success: true,
