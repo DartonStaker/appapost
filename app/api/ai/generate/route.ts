@@ -111,9 +111,13 @@ export async function POST(request: NextRequest) {
     // Determine which AI service was used (check logs or default to first available)
     const aiService = process.env.OLLAMA_URL ? "Ollama (local)" : process.env.GROK_API_KEY ? "Grok (xAI)" : process.env.OPENAI_API_KEY ? "OpenAI" : "Unknown"
 
+    // Check if vision failed (non-enumerable property)
+    const visionFailed = (variants as any)._visionFailed === true
+
     return NextResponse.json({
       success: true,
       variants,
+      visionFailed, // Include flag for client toast
       message: `Generated ${totalVariants} variants across ${targetPlatforms.length} platforms using ${aiService}`,
     })
   } catch (error: any) {

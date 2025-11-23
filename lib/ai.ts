@@ -88,6 +88,8 @@ Example: If image shows a bright yellow T-shirt with "Braai Master" print → ev
  * qwen3-vl:2b expects BOTH:
  * 1. content array with text and image_url objects (OpenAI-compatible format)
  * 2. images array with base64/URL strings (Ollama-specific requirement)
+ * 
+ * Works in dev (localhost), Vercel preview, and production.
  */
 async function callOllama(
   prompt: string,
@@ -97,7 +99,7 @@ async function callOllama(
 
   const messages: Array<{
     role: "system" | "user"
-    content: string | Array<{ type: "text" | "image_url"; text?: string; image_url?: { url: string } }>
+    content: string | Array<{ type: "text" | "image_url"; text?: string; image_url?: string }>
     images?: string[]
   }> = [
     {
@@ -106,32 +108,24 @@ async function callOllama(
     },
   ]
 
-  // Build user message with optional images
-  if (images.length > 0) {
-    // qwen3-vl:2b requires BOTH formats for maximum compatibility
-    const contentArray: Array<{ type: "text" | "image_url"; text?: string; image_url?: { url: string } }> = [
-      { type: "text", text: prompt },
-    ]
-
-    // Add each image to content array (OpenAI-compatible format)
-    for (const image of images) {
-      contentArray.push({
-        type: "image_url",
-        image_url: { url: image },
-      })
-    }
-
-    messages.push({
-      role: "user",
-      content: contentArray, // OpenAI-compatible format
-      images: images, // Ollama-specific requirement (qwen3-vl needs both)
-    })
-  } else {
-    messages.push({
-      role: "user",
-      content: prompt,
-    })
+  // Build user message - bulletproof format for qwen3-vl:2b (works in dev, Vercel preview, and production)
+  const fullPrompt = prompt
+  const userMessage: {
+    role: "user"
+    content: string | Array<{ type: "text" | "image_url"; text?: string; image_url?: string }>
+    images?: string[]
+  } = {
+    role: "user",
+    content: images.length > 0
+      ? [
+          { type: "text", text: fullPrompt },
+          { type: "image_url", image_url: images[0] }, // qwen3-vl:2b format - image_url is the string directly
+        ]
+      : fullPrompt,
+    images: images.length > 0 ? images : undefined, // Ollama-specific requirement (qwen3-vl needs both)
   }
+
+  messages.push(userMessage)
 
   const response = await fetch(url, {
     method: "POST",
@@ -284,6 +278,8 @@ function getCacheKey(params: GenerateSocialVariantsParams): string {
 
 /**
  * Main function: Generate social media variants using Ollama qwen3-vl:2b
+ * 
+ * Returns variants array. Check for _visionFailed property (non-enumerable) if vision processing failed.
  */
 export async function generateSocialVariants(
   params: GenerateSocialVariantsParams
@@ -305,6 +301,7 @@ export async function generateSocialVariants(
 
   // Prepare images (supports remote URLs and local paths)
   let ollamaImages: string[] = []
+  let visionFailed = false
   
   if (image_url) {
     try {
@@ -373,8 +370,14 @@ export async function generateSocialVariants(
       }
     } catch (error) {
       console.warn("[AI] Vision failed (image skipped):", error)
+      visionFailed = true
       // Proceed without image — text-only generation still works
     }
+  }
+  
+  // Track if vision was expected but failed
+  if (image_url && ollamaImages.length === 0) {
+    visionFailed = true
   }
 
   // Build prompt
@@ -408,6 +411,15 @@ Return JSON array with one object per platform, each containing 3-5 unique varia
     }
     cache.set(cacheKey, variants)
 
+    // Attach metadata for API routes (non-enumerable to avoid breaking existing code)
+    if (visionFailed) {
+      Object.defineProperty(variants, "_metadata", {
+        value: { visionFailed: true },
+        enumerable: false,
+        writable: false,
+      })
+    }
+
     return variants
   } catch (error) {
     console.warn(`[AI] ⚠️ Ollama failed, trying fallback:`, error)
@@ -426,6 +438,15 @@ Return JSON array with one object per platform, each containing 3-5 unique varia
         }
       }
       cache.set(cacheKey, variants)
+
+      // Attach metadata for API routes
+      if (visionFailed) {
+        Object.defineProperty(variants, "_metadata", {
+          value: { visionFailed: true },
+          enumerable: false,
+          writable: false,
+        })
+      }
 
       return variants
     } catch (fallbackError) {
@@ -467,12 +488,14 @@ export async function checkOllamaStatus(): Promise<{ online: boolean; model?: st
 /**
  * Legacy compatibility: Convert new format to old format
  * Handles both "twitter" and "x" platform names for backward compatibility
+ * 
+ * Returns variants object with optional _visionFailed property (non-enumerable) if vision processing failed.
  */
 export async function generateVariants(
   post: { title: string; excerpt?: string; image_url?: string; type: "product" | "blog" },
   platforms: Array<"instagram" | "facebook" | "twitter" | "x" | "linkedin" | "tiktok" | "pinterest"> = ["instagram", "facebook", "x", "linkedin", "tiktok", "pinterest"],
   brandSettings?: { brand_voice?: string; default_hashtags?: string[] } | null
-): Promise<Record<"instagram" | "facebook" | "twitter" | "x" | "linkedin" | "tiktok" | "pinterest", Array<{ text: string; format: "text" | "carousel" | "video"; media_urls: string[]; char_limit: number; hashtags?: string[] }>>> {
+): Promise<Record<"instagram" | "facebook" | "twitter" | "x" | "linkedin" | "tiktok" | "pinterest", Array<{ text: string; format: "text" | "carousel" | "video"; media_urls: string[]; char_limit: number; hashtags?: string[] }>> & { _visionFailed?: boolean }> {
   // Map "twitter" to "x" for new API (qwen3-vl uses "x")
   const mappedPlatforms = platforms.map((p) => (p === "twitter" ? "x" : p)) as Platform[]
 
@@ -518,5 +541,17 @@ export async function generateVariants(
     }
   }
 
-  return legacyResult as Record<"instagram" | "facebook" | "twitter" | "x" | "linkedin" | "tiktok" | "pinterest", Array<{ text: string; format: "text" | "carousel" | "video"; media_urls: string[]; char_limit: number; hashtags?: string[] }>>
+  const finalResult = legacyResult as Record<"instagram" | "facebook" | "twitter" | "x" | "linkedin" | "tiktok" | "pinterest", Array<{ text: string; format: "text" | "carousel" | "video"; media_urls: string[]; char_limit: number; hashtags?: string[] }>>
+
+  // Pass through vision failure flag from generateSocialVariants (if present)
+  const visionFailed = (result as any)._metadata?.visionFailed
+  if (visionFailed) {
+    Object.defineProperty(finalResult, "_visionFailed", {
+      value: true,
+      enumerable: false,
+      writable: false,
+    })
+  }
+
+  return finalResult
 }

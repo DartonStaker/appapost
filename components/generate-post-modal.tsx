@@ -91,6 +91,13 @@ export function GeneratePostModal({ postId, postTitle }: { postId: string; postT
         throw new Error(result.error || "Failed to generate variants")
       }
 
+      // Show vision failure toast if image processing failed
+      if (result.visionFailed) {
+        toast.warning("Image vision skipped — generating text-only", {
+          description: "The image couldn't be processed, but text variants were generated successfully.",
+        })
+      }
+
       toast.success(result.message || "Variants generated successfully!")
       // Reload variants to show new ones
       await loadVariants()
