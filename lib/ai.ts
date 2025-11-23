@@ -83,58 +83,21 @@ Output ONLY valid JSON matching this TypeScript interface (no extra text, no mar
 Example: If image shows a bright yellow T-shirt with "Braai Master" print → every variant must reference the braai vibe, yellow colour, etc.`
 
 /**
- * Convert local file to base64 data URL
- */
-async function fileToBase64(filePath: string): Promise<string> {
-  try {
-    if (!existsSync(filePath)) {
-      throw new Error(`File not found: ${filePath}`)
-    }
-    const fileBuffer = await readFile(filePath)
-    const base64 = fileBuffer.toString("base64")
-    const mimeType = filePath.endsWith(".png") ? "image/png" : filePath.endsWith(".jpg") || filePath.endsWith(".jpeg") ? "image/jpeg" : "image/jpeg"
-    return `data:${mimeType};base64,${base64}`
-  } catch (error) {
-    console.error("Error converting file to base64:", error)
-    throw error
-  }
-}
-
-/**
- * Check if image URL is local file path
- */
-function isLocalPath(url: string): boolean {
-  return !url.startsWith("http://") && !url.startsWith("https://") && !url.startsWith("data:")
-}
-
-/**
- * Prepare image for Ollama (convert local to base64, keep remote URLs)
- */
-async function prepareImage(imageUrl?: string): Promise<string | undefined> {
-  if (!imageUrl) return undefined
-
-  if (isLocalPath(imageUrl)) {
-    // Local file - convert to base64
-    return await fileToBase64(imageUrl)
-  }
-
-  // Remote URL - use as-is (qwen3-vl supports remote URLs)
-  return imageUrl
-}
-
-/**
- * Call Ollama API with vision support
- * qwen3-vl uses images array in the message object
+ * Call Ollama API with vision support for qwen3-vl:2b
+ * 
+ * qwen3-vl:2b expects BOTH:
+ * 1. content array with text and image_url objects (OpenAI-compatible format)
+ * 2. images array with base64/URL strings (Ollama-specific requirement)
  */
 async function callOllama(
   prompt: string,
-  imageUrl?: string
+  images: string[] = []
 ): Promise<string> {
   const url = `${OLLAMA_URL}/api/chat`
 
   const messages: Array<{
     role: "system" | "user"
-    content: string
+    content: string | Array<{ type: "text" | "image_url"; text?: string; image_url?: { url: string } }>
     images?: string[]
   }> = [
     {
@@ -143,13 +106,25 @@ async function callOllama(
     },
   ]
 
-  // Build user message with optional image
-  if (imageUrl) {
-    // qwen3-vl uses images array in the message
+  // Build user message with optional images
+  if (images.length > 0) {
+    // qwen3-vl:2b requires BOTH formats for maximum compatibility
+    const contentArray: Array<{ type: "text" | "image_url"; text?: string; image_url?: { url: string } }> = [
+      { type: "text", text: prompt },
+    ]
+
+    // Add each image to content array (OpenAI-compatible format)
+    for (const image of images) {
+      contentArray.push({
+        type: "image_url",
+        image_url: { url: image },
+      })
+    }
+
     messages.push({
       role: "user",
-      content: prompt,
-      images: [imageUrl], // qwen3-vl format: images array with base64 or URL
+      content: contentArray, // OpenAI-compatible format
+      images: images, // Ollama-specific requirement (qwen3-vl needs both)
     })
   } else {
     messages.push({
@@ -328,12 +303,78 @@ export async function generateSocialVariants(
     return cache.get(cacheKey)!
   }
 
-  // Prepare image
-  let preparedImage: string | undefined
-  try {
-    preparedImage = await prepareImage(image_url)
-  } catch (error) {
-    console.warn("[AI] Image preparation failed, continuing without image:", error)
+  // Prepare images (supports remote URLs and local paths)
+  let ollamaImages: string[] = []
+  
+  if (image_url) {
+    try {
+      if (image_url.startsWith("http://") || image_url.startsWith("https://")) {
+        // Remote URL — qwen3-vl can fetch directly
+        ollamaImages = [image_url]
+      } else {
+        // Local file (upload, public folder, or temp path)
+        // Try filesystem first (for absolute paths and file:// URLs)
+        let imageData: Buffer | null = null
+        let mimeType = "image/jpeg"
+
+        if (image_url.startsWith("file://")) {
+          // file:// protocol - read from filesystem
+          const filePath = image_url.replace("file://", "")
+          if (existsSync(filePath)) {
+            imageData = await readFile(filePath)
+            mimeType = filePath.endsWith(".png") 
+              ? "image/png" 
+              : filePath.endsWith(".jpg") || filePath.endsWith(".jpeg") 
+              ? "image/jpeg" 
+              : filePath.endsWith(".webp")
+              ? "image/webp"
+              : "image/jpeg"
+          }
+        } else if (!image_url.startsWith("/") && existsSync(image_url)) {
+          // Absolute file path
+          imageData = await readFile(image_url)
+          mimeType = image_url.endsWith(".png") 
+            ? "image/png" 
+            : image_url.endsWith(".jpg") || image_url.endsWith(".jpeg") 
+            ? "image/jpeg" 
+            : image_url.endsWith(".webp")
+            ? "image/webp"
+            : "image/jpeg"
+        }
+
+        if (imageData) {
+          // Convert filesystem file to base64
+          const base64 = imageData.toString("base64")
+          ollamaImages = [`data:${mimeType};base64,${base64}`]
+        } else {
+          // Try fetching (for Next.js public folder paths like /uploads/tee.jpg)
+          // In server context, we need to construct the full URL
+          let fetchUrl = image_url
+          
+          // If it's a relative path starting with /, try to fetch from server
+          if (image_url.startsWith("/")) {
+            // Construct full URL for Next.js public assets
+            const baseUrl = process.env.NEXT_PUBLIC_SITE_URL 
+              ? new URL(process.env.NEXT_PUBLIC_SITE_URL).origin
+              : process.env.VERCEL_URL 
+              ? `https://${process.env.VERCEL_URL}`
+              : "http://localhost:3000"
+            fetchUrl = `${baseUrl}${image_url}`
+          }
+
+          const response = await fetch(fetchUrl)
+          if (!response.ok) throw new Error(`Image not found: ${response.status}`)
+          
+          const buffer = Buffer.from(await response.arrayBuffer())
+          const base64 = buffer.toString("base64")
+          mimeType = response.headers.get("content-type") || "image/jpeg"
+          ollamaImages = [`data:${mimeType};base64,${base64}`]
+        }
+      }
+    } catch (error) {
+      console.warn("[AI] Vision failed (image skipped):", error)
+      // Proceed without image — text-only generation still works
+    }
   }
 
   // Build prompt
@@ -342,7 +383,7 @@ export async function generateSocialVariants(
 
 Title: ${title}
 ${excerpt ? `Description: ${excerpt}` : ""}
-${preparedImage ? "An image is provided - describe what you see and weave it into every caption." : "No image provided - focus on compelling text-only content."}
+${ollamaImages.length > 0 ? "An image is provided - describe what you see and weave it into every caption." : "No image provided - focus on compelling text-only content."}
 
 Generate variants for these platforms: ${platformsList}
 
@@ -350,8 +391,8 @@ Return JSON array with one object per platform, each containing 3-5 unique varia
 
   try {
     // Try Ollama first (primary)
-    console.log(`[AI] Calling Ollama ${OLLAMA_MODEL} at ${OLLAMA_URL}`)
-    const response = await callOllama(prompt, preparedImage || undefined)
+    console.log(`[AI] Calling Ollama ${OLLAMA_MODEL} at ${OLLAMA_URL}${ollamaImages.length > 0 ? ` with ${ollamaImages.length} image(s)` : ""}`)
+    const response = await callOllama(prompt, ollamaImages)
     console.log(`[AI] ✅ Ollama response received (${response.length} chars)`)
 
     let variants = parseAIResponse(response)
