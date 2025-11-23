@@ -586,18 +586,20 @@ Return JSON array with one object per platform, each containing 3-5 unique varia
  * Check if Ollama is online
  */
 export async function checkOllamaStatus(): Promise<{ online: boolean; model?: string; error?: string }> {
-  // Skip check if OLLAMA_URL is not configured or is localhost (won't work on Vercel)
-  if (!OLLAMA_URL || OLLAMA_URL.includes("localhost") || OLLAMA_URL.includes("127.0.0.1")) {
-    // On Vercel, localhost won't work - return offline gracefully
-    if (process.env.VERCEL) {
-      return { online: false, error: "Ollama requires a publicly accessible URL on Vercel" }
-    }
-    // In local dev, still try to check
+  // On Vercel, localhost won't work - return offline gracefully
+  if (process.env.VERCEL && (OLLAMA_URL.includes("localhost") || OLLAMA_URL.includes("127.0.0.1"))) {
+    return { online: false, error: "Ollama requires a publicly accessible URL on Vercel" }
+  }
+
+  if (!OLLAMA_URL) {
+    return { online: false, error: "OLLAMA_URL not configured" }
   }
 
   try {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
+
+    console.log(`[Ollama] Checking status at ${OLLAMA_URL}/api/tags`)
 
     const response = await fetch(`${OLLAMA_URL}/api/tags`, {
       method: "GET",
@@ -618,6 +620,8 @@ export async function checkOllamaStatus(): Promise<{ online: boolean; model?: st
     const models = data.models || []
     const modelName = OLLAMA_MODEL.split(":")[0]
     const hasModel = models.some((m: any) => m.name?.includes(modelName))
+
+    console.log(`[Ollama] Status check successful. Models found: ${models.length}, Has ${OLLAMA_MODEL}: ${hasModel}`)
 
     return {
       online: true,
