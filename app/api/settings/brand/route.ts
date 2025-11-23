@@ -19,13 +19,12 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createClient()
 
-    // Check if settings exist
+    // Check if settings exist (use maybeSingle to handle no results)
     const { data: existing } = await supabase
       .from("brand_settings")
       .select("id")
       .eq("user_id", user.id)
-      .limit(1)
-      .single()
+      .maybeSingle()
 
     const settingsData = {
       user_id: user.id,
