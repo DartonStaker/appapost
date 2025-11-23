@@ -16,7 +16,7 @@ export default async function DashboardLayout({
     const user = await getCurrentUser()
 
     if (!user) {
-      redirect("/api/auth/signin")
+      redirect("/login")
     }
 
     return (
@@ -48,7 +48,7 @@ export default async function DashboardLayout({
     )
   } catch (error) {
     console.error("Error in dashboard layout:", error)
-    redirect("/api/auth/signin")
+    redirect("/login")
   }
 }
 

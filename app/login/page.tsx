@@ -28,7 +28,24 @@ export default function LoginPage() {
         password,
       })
 
-      if (error) throw error
+      if (error) {
+        // If user doesn't exist, try to sign up
+        if (error.message.includes("Invalid login credentials")) {
+          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              emailRedirectTo: `${window.location.origin}/auth/callback`,
+            },
+          })
+
+          if (signUpError) throw signUpError
+
+          toast.success("Account created! Please check your email to verify your account.")
+          return
+        }
+        throw error
+      }
 
       toast.success("Signed in successfully!")
       router.push("/dashboard")
