@@ -42,7 +42,7 @@ export default function ManualConnectPage() {
       }
 
       toast.success("Account connected successfully!")
-      router.push("/dashboard/settings")
+      router.push("/dashboard/settings?success=manual_connected")
     } catch (error: any) {
       toast.error(error.message || "Failed to connect account")
     } finally {
