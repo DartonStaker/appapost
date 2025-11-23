@@ -27,13 +27,13 @@ export async function POST(
     }
 
     // Validate platform and map "twitter" to "x"
-    const validPlatforms = ["instagram", "facebook", "twitter", "x", "linkedin", "tiktok", "pinterest"]
-    if (!validPlatforms.includes(platform)) {
+    const validPlatforms: (Platform | "twitter")[] = ["instagram", "facebook", "twitter", "x", "linkedin", "tiktok", "pinterest"]
+    if (!validPlatforms.includes(platform as Platform | "twitter")) {
       return NextResponse.json({ error: "Invalid platform" }, { status: 400 })
     }
     
     // Map "twitter" to "x" for new API
-    const mappedPlatform = (platform === "twitter" ? "x" : platform) as Platform
+    const mappedPlatform: Platform = platform === "twitter" ? "x" : (platform as Platform)
 
     const supabase = await createClient()
 

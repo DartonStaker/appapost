@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/auth"
 import { createClient } from "@/lib/supabase/server"
-import { generateVariants } from "@/lib/ai"
+import { generateVariants, type Platform } from "@/lib/ai"
 
 export const dynamic = "force-dynamic"
 
@@ -48,14 +48,17 @@ export async function POST(request: NextRequest) {
 
     // Generate variants for all platforms or specified ones
     // Map "twitter" to "x" for new API, but keep legacy support
-    const targetPlatforms = (platforms || [
+    const inputPlatforms: (Platform | "twitter")[] = platforms || [
       "instagram",
       "facebook",
       "twitter",
       "linkedin",
       "tiktok",
       "pinterest",
-    ]).map((p) => (p === "twitter" ? "x" : p)) as Array<"instagram" | "facebook" | "x" | "linkedin" | "tiktok" | "pinterest">
+    ]
+    const targetPlatforms: Platform[] = inputPlatforms.map((p: Platform | "twitter"): Platform => 
+      p === "twitter" ? "x" : p
+    )
 
     // Delete existing variants for this post (to allow regeneration)
     const { error: deleteError } = await supabase
