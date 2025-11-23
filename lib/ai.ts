@@ -54,6 +54,7 @@ async function callAI(prompt: string): Promise<string> {
 
   // Try Ollama first (local, free, unlimited)
   try {
+    console.log(`[AI] Attempting Ollama at ${OLLAMA_URL} with model ${OLLAMA_MODEL}`)
     const response = await axios.post(
       `${OLLAMA_URL}/api/chat`,
       {
@@ -84,11 +85,15 @@ async function callAI(prompt: string): Promise<string> {
 
     const content = response.data?.message?.content || response.data?.response || ""
     if (content) {
+      console.log(`[AI] ✅ Successfully generated content using Ollama (${content.length} chars)`)
       return content
+    } else {
+      console.warn("[AI] Ollama returned empty content")
     }
-  } catch (error) {
+  } catch (error: any) {
     // Ollama not available or error - fall through to cloud providers
-    console.warn("Ollama not available, falling back to cloud AI:", error)
+    const errorMsg = error?.response?.data?.error || error?.message || "Unknown error"
+    console.warn(`[AI] ⚠️ Ollama not available (${errorMsg}), falling back to cloud AI`)
   }
 
   // Fallback to Grok (xAI)

@@ -43,12 +43,18 @@ export async function GET(
     }
 
     // Group by platform
+    // variant_json can be either an array (new format) or a single object (old format)
     const grouped: Record<string, any[]> = {}
     variants?.forEach((v) => {
       if (!grouped[v.platform]) {
         grouped[v.platform] = []
       }
-      grouped[v.platform].push(v.variant_json)
+      // Handle both array (new format) and single object (old format)
+      if (Array.isArray(v.variant_json)) {
+        grouped[v.platform].push(...v.variant_json)
+      } else {
+        grouped[v.platform].push(v.variant_json)
+      }
     })
 
     return NextResponse.json({ variants: grouped })

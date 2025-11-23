@@ -46,6 +46,17 @@ export async function POST(request: NextRequest) {
       "pinterest",
     ]
 
+    // Delete existing variants for this post (to allow regeneration)
+    const { error: deleteError } = await supabase
+      .from("post_variants")
+      .delete()
+      .eq("post_id", post_id)
+
+    if (deleteError) {
+      console.error("Error deleting old variants:", deleteError)
+      // Continue anyway - might be first generation
+    }
+
     const variants = await generateVariants(
       {
         title: post.title,
@@ -57,13 +68,15 @@ export async function POST(request: NextRequest) {
     )
 
     // Store variants in database
+    // Note: Since schema has UNIQUE(post_id, platform), we store all variants for a platform as a JSON array
     const variantInserts = []
     for (const [platform, platformVariants] of Object.entries(variants)) {
-      for (const variant of platformVariants) {
+      if (platformVariants.length > 0) {
+        // Store all variants for this platform as an array in variant_json
         variantInserts.push({
           post_id: post_id,
           platform,
-          variant_json: variant,
+          variant_json: platformVariants, // Store array of variants
           is_selected: false,
         })
       }
@@ -72,9 +85,7 @@ export async function POST(request: NextRequest) {
     if (variantInserts.length > 0) {
       const { error: insertError } = await supabase
         .from("post_variants")
-        .upsert(variantInserts, {
-          onConflict: "post_id,platform",
-        })
+        .insert(variantInserts)
 
       if (insertError) {
         console.error("Error storing variants:", insertError)
@@ -82,10 +93,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Count total variants generated
+    const totalVariants = Object.values(variants).reduce((sum, platformVariants) => sum + platformVariants.length, 0)
+    
+    // Determine which AI service was used (check logs or default to first available)
+    const aiService = process.env.OLLAMA_URL ? "Ollama (local)" : process.env.GROK_API_KEY ? "Grok (xAI)" : process.env.OPENAI_API_KEY ? "OpenAI" : "Unknown"
+
     return NextResponse.json({
       success: true,
       variants,
-      message: `Generated ${variantInserts.length} variants across ${targetPlatforms.length} platforms`,
+      message: `Generated ${totalVariants} variants across ${targetPlatforms.length} platforms using ${aiService}`,
     })
   } catch (error: any) {
     console.error("AI generation error:", error)

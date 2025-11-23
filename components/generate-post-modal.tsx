@@ -73,6 +73,10 @@ export function GeneratePostModal({ postId, postTitle }: { postId: string; postT
 
   const handleGenerate = async () => {
     setGenerating(true)
+    // Clear selected variants when regenerating
+    setSelectedVariants({})
+    setEditedVariants({})
+    
     try {
       const response = await fetch("/api/ai/generate", {
         method: "POST",
@@ -87,8 +91,10 @@ export function GeneratePostModal({ postId, postTitle }: { postId: string; postT
       }
 
       toast.success(result.message || "Variants generated successfully!")
+      // Reload variants to show new ones
       await loadVariants()
     } catch (error: any) {
+      console.error("Generation error:", error)
       toast.error(error.message || "Failed to generate variants")
     } finally {
       setGenerating(false)
