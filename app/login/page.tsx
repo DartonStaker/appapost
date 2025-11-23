@@ -61,10 +61,15 @@ export default function LoginPage() {
     setIsGoogleLoading(true)
 
     try {
+      // Use environment variable for production, fallback to window.location for dev
+      const redirectUrl = process.env.NEXT_PUBLIC_SITE_URL 
+        ? `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/dashboard`
+        : `${window.location.origin}/auth/callback?next=/dashboard`
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+          redirectTo: redirectUrl,
           queryParams: {
             access_type: "offline",
             prompt: "consent",

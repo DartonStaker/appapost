@@ -21,20 +21,33 @@ function AuthCallbackContent() {
           
           if (error) {
             console.error("Error exchanging code:", error)
-            router.push(`/login?error=auth_failed`)
+            // Redirect to login with error, using full URL if needed
+            const loginUrl = process.env.NEXT_PUBLIC_SITE_URL 
+              ? `${process.env.NEXT_PUBLIC_SITE_URL}/login?error=auth_failed`
+              : `/login?error=auth_failed`
+            window.location.href = loginUrl
             return
           }
 
           // Successfully authenticated, redirect to dashboard
-          router.push(next)
-          router.refresh()
+          // Use window.location for full page reload to ensure session is set
+          const dashboardUrl = process.env.NEXT_PUBLIC_SITE_URL 
+            ? `${process.env.NEXT_PUBLIC_SITE_URL}${next}`
+            : next
+          window.location.href = dashboardUrl
         } catch (error) {
           console.error("Callback error:", error)
-          router.push(`/login?error=auth_failed`)
+          const loginUrl = process.env.NEXT_PUBLIC_SITE_URL 
+            ? `${process.env.NEXT_PUBLIC_SITE_URL}/login?error=auth_failed`
+            : `/login?error=auth_failed`
+          window.location.href = loginUrl
         }
       } else {
         // No code, redirect to login
-        router.push("/login")
+        const loginUrl = process.env.NEXT_PUBLIC_SITE_URL 
+          ? `${process.env.NEXT_PUBLIC_SITE_URL}/login`
+          : `/login`
+        window.location.href = loginUrl
       }
     }
 
