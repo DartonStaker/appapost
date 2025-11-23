@@ -1,22 +1,38 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
-import { Loader2 } from "lucide-react"
+import { Loader2, AlertCircle } from "lucide-react"
 
 export default function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [isGoogleLoading, setIsGoogleLoading] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const supabase = createClient()
+
+  useEffect(() => {
+    const error = searchParams.get("error")
+    if (error) {
+      const errorMessages: Record<string, string> = {
+        auth_failed: "Authentication failed. Please try again.",
+        no_code: "No authorization code received. Please try signing in again.",
+        no_session: "Session creation failed. Please try again.",
+      }
+      setErrorMessage(errorMessages[error] || `Error: ${error}`)
+      // Clear the error from URL after displaying
+      router.replace("/login")
+    }
+  }, [searchParams, router])
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -101,6 +117,16 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {errorMessage && (
+            <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive border border-destructive/20 flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="font-medium">Authentication Error</p>
+                <p className="mt-1">{errorMessage}</p>
+              </div>
+            </div>
+          )}
+
           <Button
             type="button"
             variant="outline"
