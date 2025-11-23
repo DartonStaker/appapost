@@ -18,7 +18,7 @@ const platformHandlers: Record<Platform, (accessToken: string, content: string, 
   twitter: async (token, content, imageUrl, extra) => postToTwitter(token, extra?.accessTokenSecret || "", content, imageUrl),
   linkedin: async (token, content, imageUrl) => postToLinkedIn(token, content, imageUrl),
   tiktok: async (token, content, videoUrl) => postToTikTok(token, content, videoUrl || ""),
-  pinterest: async (token, content, imageUrl, extra) => postToPinterest(token, extra?.boardId || "", content, imageUrl, extra?.link),
+  pinterest: async (token, content, imageUrl, extra) => postToPinterest(token, extra?.boardId || "", content, imageUrl || "", extra?.link),
 }
 
 export async function POST(
