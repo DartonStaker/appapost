@@ -4,52 +4,68 @@ import { Redis } from "@upstash/redis"
 const redisUrl = process.env.UPSTASH_REDIS_URL
 const redisToken = process.env.UPSTASH_REDIS_TOKEN
 
-// Initialize Redis connection
-let redis: Redis | null = null
-if (redisUrl && redisToken) {
-  redis = new Redis({
-    url: redisUrl,
-    token: redisToken,
-  })
+// Lazy Redis connection (only initialize when needed)
+function getRedisConnection() {
+  if (redisUrl && redisToken) {
+    try {
+      return {
+        host: new URL(redisUrl).hostname,
+        port: parseInt(new URL(redisUrl).port) || 6379,
+        password: redisToken,
+      }
+    } catch {
+      // Invalid URL, fall back to defaults
+    }
+  }
+  
+  return {
+    host: process.env.REDIS_HOST || "localhost",
+    port: parseInt(process.env.REDIS_PORT || "6379"),
+  }
 }
 
-// Connection config for BullMQ
-const connection = redis
-  ? {
-      host: new URL(redisUrl!).hostname,
-      port: parseInt(new URL(redisUrl!).port) || 6379,
-      password: redisToken,
-    }
-  : {
-      host: process.env.REDIS_HOST || "localhost",
-      port: parseInt(process.env.REDIS_PORT || "6379"),
-    }
+const connection = getRedisConnection()
 
 /**
  * Posting queue for rate-limited social media posting
+ * Lazy initialization to avoid build-time errors
  */
-export const postingQueue = new Queue("posting", {
-  connection,
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: {
-      type: "exponential",
-      delay: 2000,
-    },
-    removeOnComplete: {
-      age: 3600, // Keep completed jobs for 1 hour
-      count: 1000,
-    },
-    removeOnFail: {
-      age: 86400, // Keep failed jobs for 24 hours
-    },
-  },
-})
+let _postingQueue: Queue | null = null
+let _queueEvents: QueueEvents | null = null
 
-/**
- * Queue events for monitoring
- */
-export const queueEvents = new QueueEvents("posting", { connection })
+export function getPostingQueue(): Queue {
+  if (!_postingQueue) {
+    _postingQueue = new Queue("posting", {
+      connection: getRedisConnection(),
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: {
+          type: "exponential",
+          delay: 2000,
+        },
+        removeOnComplete: {
+          age: 3600, // Keep completed jobs for 1 hour
+          count: 1000,
+        },
+        removeOnFail: {
+          age: 86400, // Keep failed jobs for 24 hours
+        },
+      },
+    })
+  }
+  return _postingQueue
+}
+
+export function getQueueEvents(): QueueEvents {
+  if (!_queueEvents) {
+    _queueEvents = new QueueEvents("posting", { connection: getRedisConnection() })
+  }
+  return _queueEvents
+}
+
+// Export for backward compatibility
+export const postingQueue = getPostingQueue()
+export const queueEvents = getQueueEvents()
 
 /**
  * Add a post job to the queue with rate limiting

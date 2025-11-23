@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/auth"
 import { createClient } from "@/lib/supabase/server"
 import { decrypt } from "@/lib/crypto"
 import { postToPlatform, getPlatformRateLimit, type Platform } from "@/lib/social-clients"
-import { queuePost, calculatePostDelay } from "@/lib/queue"
+import { getPostingQueue, calculatePostDelay } from "@/lib/queue"
 
 export const dynamic = "force-dynamic"
 
@@ -98,7 +98,19 @@ export async function POST(request: NextRequest) {
         const scheduledTime = new Date(now.getTime() + delay)
 
         // Add to queue
-        await queuePost(post_id, platform, variantRow.id, scheduledTime)
+        const queue = getPostingQueue()
+        await queue.add(
+          "post",
+          {
+            postId: post_id,
+            platform,
+            variantId: variantRow.id,
+          },
+          {
+            delay: delay > 0 ? delay : 0,
+            jobId: `${post_id}-${platform}-${Date.now()}`,
+          }
+        )
 
         // Update post status
         await supabase.from("posts").update({ status: "queued" }).eq("id", post_id)

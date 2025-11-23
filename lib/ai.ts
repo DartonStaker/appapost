@@ -4,9 +4,15 @@ import axios from "axios"
 const GROK_API_KEY = process.env.GROK_API_KEY
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 
-const openai = new OpenAI({
-  apiKey: OPENAI_API_KEY,
-})
+// Lazy initialization of OpenAI client (only when needed and API key is available)
+function getOpenAIClient(): OpenAI | null {
+  if (!OPENAI_API_KEY) {
+    return null
+  }
+  return new OpenAI({
+    apiKey: OPENAI_API_KEY,
+  })
+}
 
 export type Platform = "instagram" | "facebook" | "twitter" | "linkedin" | "tiktok" | "pinterest"
 
@@ -77,7 +83,8 @@ async function callAI(prompt: string): Promise<string> {
   }
 
   // Fallback to OpenAI GPT-4o-mini
-  if (OPENAI_API_KEY) {
+  const openai = getOpenAIClient()
+  if (openai) {
     try {
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
@@ -103,7 +110,7 @@ async function callAI(prompt: string): Promise<string> {
     }
   }
 
-  throw new Error("No AI API key configured")
+  throw new Error("No AI API key configured (GROK_API_KEY or OPENAI_API_KEY required)")
 }
 
 /**
