@@ -48,9 +48,31 @@ const PLATFORM_LIMITS: Record<Platform, { charLimit: number; formats: string[] }
 /**
  * Generate AI content using Ollama (local, free) with fallback to Grok/OpenAI
  */
-async function callAI(prompt: string): Promise<string> {
-  const systemPrompt =
-    "You are a social media content creator for Apparely, a South African fashion brand. Create engaging, fun, and brand-appropriate content with SA flair. Always include relevant hashtags like #ApparelyCustom #MzansiFashion."
+async function callAI(prompt: string, temperature: number = 1.2): Promise<string> {
+  const systemPrompt = `You are a professional Social Media Marketing Expert specializing in fashion and lifestyle brands, with deep expertise in:
+- Keyword research and SEO optimization for social media
+- Platform-specific content strategies (Instagram, Facebook, Twitter/X, LinkedIn, TikTok, Pinterest)
+- Trend analysis and viral content creation
+- Audience engagement and conversion optimization
+- Hashtag strategy and reach maximization
+
+You work for Apparely, a proudly South African custom apparel brand. Your content should:
+- Be creative, engaging, and authentically South African (Mzansi flair)
+- Include strategic keywords for maximum reach and discoverability
+- Use trending hashtags relevant to fashion, custom apparel, and South African culture
+- Vary tone, style, and approach across different variants for maximum diversity
+- Include compelling CTAs when appropriate
+- Optimize for each platform's unique audience and algorithm
+
+Brand voice: Fun, bold, proudly Mzansi, fashion-forward, inclusive, community-focused.
+Default hashtags: #ApparelyCustom #MzansiFashion #PrintedWithPride #SouthAfricanStyle
+
+IMPORTANT: Each variant must be UNIQUE with different:
+- Opening hooks and angles
+- Keyword combinations
+- Tone variations (playful, inspirational, informative, etc.)
+- Hashtag selections
+- Call-to-action approaches`
 
   // Try Ollama first (local, free, unlimited)
   try {
@@ -71,8 +93,11 @@ async function callAI(prompt: string): Promise<string> {
         ],
         stream: false,
         options: {
-          temperature: 0.8,
-          num_predict: 2000,
+          temperature: temperature, // Higher temperature for more creativity (1.2-1.5)
+          num_predict: 2500, // Increased for more detailed content
+          top_p: 0.95, // Nucleus sampling for more diverse outputs
+          top_k: 40, // Top-k sampling for variety
+          repeat_penalty: 1.15, // Penalize repetition for more unique variants
         },
       },
       {
@@ -113,8 +138,8 @@ async function callAI(prompt: string): Promise<string> {
               content: prompt,
             },
           ],
-          temperature: 0.8,
-          max_tokens: 2000,
+          temperature: temperature,
+          max_tokens: 2500,
         },
         {
           headers: {
@@ -146,8 +171,8 @@ async function callAI(prompt: string): Promise<string> {
             content: prompt,
           },
         ],
-        temperature: 0.8,
-        max_tokens: 2000,
+        temperature: temperature,
+        max_tokens: 2500,
       })
 
       return completion.choices[0]?.message?.content || ""
@@ -165,7 +190,8 @@ async function callAI(prompt: string): Promise<string> {
  */
 export async function generateVariants(
   post: Post,
-  platforms: Platform[] = ["instagram", "facebook", "twitter", "linkedin", "tiktok", "pinterest"]
+  platforms: Platform[] = ["instagram", "facebook", "twitter", "linkedin", "tiktok", "pinterest"],
+  brandSettings?: { brand_voice?: string; default_hashtags?: string[] } | null
 ): Promise<Record<Platform, PostVariant[]>> {
   const results: Record<Platform, PostVariant[]> = {
     instagram: [],
@@ -176,86 +202,172 @@ export async function generateVariants(
     pinterest: [],
   }
 
+  // Get brand voice and hashtags
+  const brandVoice = brandSettings?.brand_voice || "Fun, bold, proudly Mzansi, fashion-forward, inclusive, community-focused"
+  const defaultHashtags = brandSettings?.default_hashtags || ["ApparelyCustom", "MzansiFashion", "PrintedWithPride", "SouthAfricanStyle"]
+  const hashtagString = defaultHashtags.map((h) => `#${h}`).join(" ")
+
+  // Extract keywords from title and excerpt for SEO
+  const contentText = `${post.title} ${post.excerpt || ""}`.toLowerCase()
+  const keywords = [
+    ...new Set(
+      contentText
+        .split(/\s+/)
+        .filter((word) => word.length > 4 && !["with", "from", "this", "that", "your", "their"].includes(word))
+        .slice(0, 10)
+    ),
+  ]
+
   for (const platform of platforms) {
     const limits = PLATFORM_LIMITS[platform]
     const hasMedia = !!post.image_url
 
-    // Build platform-specific prompt
-    const prompt = `Generate 3-5 ${platform} post variations for Apparely ${post.type}:
+    // Platform-specific keyword strategies
+    const platformKeywords: Record<Platform, string[]> = {
+      instagram: ["fashion", "style", "ootd", "fashionista", "trending", "viral", "aesthetic", "outfit"],
+      facebook: ["community", "share", "like", "fashion", "lifestyle", "custom", "personalized"],
+      twitter: ["trending", "viral", "fashion", "style", "news", "update"],
+      linkedin: ["professional", "business", "networking", "career", "brand", "marketing"],
+      tiktok: ["viral", "trending", "fyp", "fashion", "style", "outfit", "aesthetic"],
+      pinterest: ["diy", "fashion", "style", "outfit", "inspiration", "ideas", "trends"],
+    }
 
+    // Build comprehensive, professional prompt with keyword research
+    const prompt = `As a Social Media Marketing Professional, create 5 highly creative and UNIQUE ${platform} post variations for Apparely's ${post.type}.
+
+CONTENT CONTEXT:
 Title: ${post.title}
-${post.excerpt ? `Excerpt: ${post.excerpt}` : ""}
-${hasMedia ? "Has image/video available" : "Text-only post"}
+${post.excerpt ? `Description: ${post.excerpt}` : ""}
+${hasMedia ? "Media: Image/video available - optimize content for visual engagement" : "Media: Text-only post - focus on compelling copy"}
 
-Requirements:
+BRAND VOICE: ${brandVoice}
+
+PLATFORM REQUIREMENTS:
 - Platform: ${platform}
-- Character limit: ${limits.charLimit} characters
-- Formats available: ${limits.formats.join(", ")}
-- Style: SA flair, fun, engaging, brand-appropriate
-- Include hashtags: #ApparelyCustom #MzansiFashion (add 2-3 more relevant ones)
-- Include CTA when appropriate
-${platform === "instagram" && hasMedia ? "- Use carousel format if multiple images available" : ""}
-${platform === "twitter" ? "- Keep it concise, can use thread if needed" : ""}
-${platform === "tiktok" ? "- Short, punchy, video-friendly caption" : ""}
-${platform === "linkedin" ? "- Professional but approachable tone" : ""}
-${platform === "pinterest" ? "- Descriptive, SEO-friendly" : ""}
+- Character limit: ${limits.charLimit} characters (strict)
+- Formats: ${limits.formats.join(", ")}
+- Target audience: ${platform === "instagram" ? "Fashion enthusiasts, style-conscious millennials/Gen Z" : platform === "linkedin" ? "Professionals, entrepreneurs, brand builders" : platform === "twitter" ? "Trend-followers, quick-engagers" : platform === "tiktok" ? "Gen Z, trend-setters, creative community" : platform === "pinterest" ? "DIY enthusiasts, style planners, inspiration seekers" : "General fashion and lifestyle audience"}
 
-Return ONLY the post text variations (one per line), no explanations. Each variation should be unique and optimized for ${platform}.`
+KEYWORD STRATEGY:
+Primary keywords: ${keywords.join(", ")}
+Platform-specific keywords: ${platformKeywords[platform].join(", ")}
+Include these keywords naturally throughout each variation for SEO and discoverability.
+
+HASHTAG STRATEGY:
+Base hashtags: ${hashtagString}
+Add 3-5 trending/relevant hashtags per variation. Mix:
+- Brand hashtags (${defaultHashtags.slice(0, 2).map((h) => `#${h}`).join(", ")})
+- Trending fashion hashtags (#FashionSA, #StyleMzansi, #TrendingNow, etc.)
+- Niche hashtags relevant to the ${post.type} type
+- Platform-specific hashtags (${platform === "instagram" ? "#InstaFashion, #FashionGram" : platform === "tiktok" ? "#FashionTok, #StyleTok" : platform === "pinterest" ? "#FashionInspo, #StyleIdeas" : ""})
+
+CREATIVITY REQUIREMENTS:
+Each of the 5 variations MUST be completely different:
+1. Variation 1: Hook with question or bold statement, focus on ${keywords[0] || "fashion"}
+2. Variation 2: Storytelling angle, emotional connection, focus on ${keywords[1] || "style"}
+3. Variation 3: Benefit-driven, problem-solution format, focus on ${keywords[2] || "custom"}
+4. Variation 4: Trend-focused, use current social media language, focus on ${keywords[3] || "apparel"}
+5. Variation 5: Community-focused, user-generated content style, focus on ${keywords[4] || "brand"}
+
+${platform === "instagram" ? "INSTAGRAM SPECIFIC: Use emojis strategically (2-4 max), create visual descriptions, encourage saves and shares" : ""}
+${platform === "twitter" ? "TWITTER SPECIFIC: Be witty, concise, use thread potential if needed, leverage trending topics" : ""}
+${platform === "tiktok" ? "TIKTOK SPECIFIC: Use trending sounds/format references, be punchy, encourage comments and duets" : ""}
+${platform === "linkedin" ? "LINKEDIN SPECIFIC: Professional tone with personality, focus on value and insights, encourage thoughtful engagement" : ""}
+${platform === "pinterest" ? "PINTEREST SPECIFIC: SEO-rich descriptions, focus on searchability, use keywords naturally" : ""}
+
+OUTPUT FORMAT:
+Return ONLY the 5 post text variations, one per line. No numbering, no explanations, no prefixes.
+Each line should be a complete, ready-to-post social media caption with hashtags included.
+Make each variation distinctly different in tone, angle, keywords, and hashtag selection.`
 
     try {
-      const aiResponse = await callAI(prompt)
-      const variations = aiResponse
+      // Vary temperature slightly for each platform to increase diversity
+      const temperatureVariation = 1.2 + (Math.random() * 0.3) // 1.2 to 1.5
+      const aiResponse = await callAI(prompt, temperatureVariation)
+      
+      // Parse variations - handle different formats
+      let variations = aiResponse
         .split("\n")
-        .filter((line) => line.trim().length > 0)
-        .slice(0, 5) // Max 5 variations
-        .map((text) => {
-          // Extract hashtags
-          const hashtagRegex = /#\w+/g
-          const hashtags = text.match(hashtagRegex) || []
-
-          // Determine format based on platform and media
-          let format: "text" | "carousel" | "video" = "text"
-          if (platform === "instagram" && hasMedia) {
-            format = "carousel"
-          } else if (platform === "tiktok" && hasMedia) {
-            format = "video"
-          }
-
-          // Truncate to platform limit
-          const truncatedText = text.substring(0, limits.charLimit)
-
-          return {
-            text: truncatedText,
-            format,
-            media_urls: hasMedia ? [post.image_url!] : [],
-            char_limit: limits.charLimit,
-            hashtags: hashtags.map((h) => h.substring(1)), // Remove # symbol
-          }
+        .map((line) => line.trim())
+        .filter((line) => {
+          // Filter out empty lines, numbers, prefixes, and explanations
+          return (
+            line.length > 20 && // Minimum length
+            !line.match(/^(Variation|Option|Version|#|1\.|2\.|3\.|4\.|5\.)/i) && // No prefixes
+            !line.match(/^(Here|This|The|Note:|Output:|Result:)/i) // No explanations
+          )
         })
+        .slice(0, 5) // Max 5 variations
+      
+      // If we got fewer than 5, try splitting by double newlines or other patterns
+      if (variations.length < 3) {
+        const altVariations = aiResponse
+          .split(/\n\n+|---+/)
+          .map((line) => line.trim())
+          .filter((line) => line.length > 20)
+        variations = [...variations, ...altVariations].slice(0, 5)
+      }
+      
+      const processedVariations = variations.map((text, index) => {
+        // Extract hashtags
+        const hashtagRegex = /#[\w]+/g
+        const hashtags = text.match(hashtagRegex) || []
+        
+        // Keep hashtags in text for display
+
+        // Determine format based on platform and media
+        let format: "text" | "carousel" | "video" = "text"
+        if (platform === "instagram" && hasMedia) {
+          format = "carousel"
+        } else if (platform === "tiktok" && hasMedia) {
+          format = "video"
+        }
+
+        // Truncate to platform limit (but try to preserve hashtags)
+        let truncatedText = text
+        if (text.length > limits.charLimit) {
+          // Try to truncate at a word boundary before the limit
+          const truncated = text.substring(0, limits.charLimit - 50)
+          const lastSpace = truncated.lastIndexOf(" ")
+          if (lastSpace > limits.charLimit * 0.7) {
+            truncatedText = text.substring(0, lastSpace) + "..."
+          } else {
+            truncatedText = text.substring(0, limits.charLimit - 3) + "..."
+          }
+        }
+
+        return {
+          text: truncatedText,
+          format,
+          media_urls: hasMedia ? [post.image_url!] : [],
+          char_limit: limits.charLimit,
+          hashtags: hashtags.map((h) => h.substring(1).replace(/\s+/g, "")), // Remove # symbol and spaces
+        }
+      })
 
       // Ensure minimum 3 variants
-      if (variations.length < 3) {
+      if (processedVariations.length < 3) {
         // Duplicate variations to meet minimum requirement
-        while (variations.length < 3 && variations.length > 0) {
-          const baseVariation = variations[0]
-          variations.push({
+        while (processedVariations.length < 3 && processedVariations.length > 0) {
+          const baseVariation = processedVariations[0]
+          processedVariations.push({
             ...baseVariation,
-            text: `${baseVariation.text} (Variation ${variations.length + 1})`,
+            text: `${baseVariation.text} (Variation ${processedVariations.length + 1})`,
           })
         }
         // If still no variations, create fallback
-        if (variations.length === 0) {
-          variations.push({
-            text: `${post.title}${post.excerpt ? ` - ${post.excerpt}` : ""} #ApparelyCustom #MzansiFashion`,
+        if (processedVariations.length === 0) {
+          processedVariations.push({
+            text: `${post.title}${post.excerpt ? ` - ${post.excerpt}` : ""} ${hashtagString}`,
             format: hasMedia && platform === "instagram" ? "carousel" : "text",
             media_urls: hasMedia ? [post.image_url!] : [],
             char_limit: limits.charLimit,
-            hashtags: ["ApparelyCustom", "MzansiFashion"],
+            hashtags: defaultHashtags.slice(0, 3),
           })
         }
       }
 
-      results[platform] = variations.slice(0, 5) // Max 5, but ensure at least 3
+      results[platform] = processedVariations.slice(0, 5) // Max 5, but ensure at least 3
     } catch (error) {
       console.error(`Failed to generate variants for ${platform}:`, error)
       // Create fallback variants (minimum 3)

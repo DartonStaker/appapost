@@ -77,6 +77,13 @@ export async function POST(request: NextRequest) {
 
     // Automatically generate variants for all platforms (minimum 3 per platform)
     try {
+      // Fetch brand settings for better content generation
+      const { data: brandSettings } = await supabase
+        .from("brand_settings")
+        .select("brand_voice, default_hashtags")
+        .eq("user_id", user.id)
+        .maybeSingle()
+
       const variants = await generateVariants(
         {
           title: post.title,
@@ -84,7 +91,8 @@ export async function POST(request: NextRequest) {
           image_url: post.image_url || undefined,
           type: post.type as "product" | "blog",
         },
-        ["instagram", "facebook", "twitter", "linkedin", "tiktok", "pinterest"]
+        ["instagram", "facebook", "twitter", "linkedin", "tiktok", "pinterest"],
+        brandSettings
       )
 
       // Store variants in database

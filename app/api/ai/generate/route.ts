@@ -24,13 +24,23 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createClient()
 
-    // Fetch the post
-    const { data: post, error: postError } = await supabase
-      .from("posts")
-      .select("*")
-      .eq("id", post_id)
-      .eq("user_id", user.id)
-      .single()
+    // Fetch the post and brand settings
+    const [postResult, brandSettingsResult] = await Promise.all([
+      supabase
+        .from("posts")
+        .select("*")
+        .eq("id", post_id)
+        .eq("user_id", user.id)
+        .single(),
+      supabase
+        .from("brand_settings")
+        .select("brand_voice, default_hashtags")
+        .eq("user_id", user.id)
+        .maybeSingle(),
+    ])
+
+    const { data: post, error: postError } = postResult
+    const { data: brandSettings } = brandSettingsResult
 
     if (postError || !post) {
       return NextResponse.json({ error: "Post not found" }, { status: 404 })
@@ -64,7 +74,8 @@ export async function POST(request: NextRequest) {
         image_url: post.image_url || undefined,
         type: post.type as "product" | "blog",
       },
-      targetPlatforms
+      targetPlatforms,
+      brandSettings
     )
 
     // Store variants in database
