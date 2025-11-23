@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { ArrowRight, Sparkles, Zap, Shield, BarChart3 } from "lucide-react"
+import Image from "next/image"
 
 export default function LandingPage() {
   return (
@@ -9,9 +10,14 @@ export default function LandingPage() {
       <header className="border-b border-border/40 bg-background/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-gradient-to-br from-primary to-secondary rounded-lg flex items-center justify-center">
-              <Sparkles className="w-6 h-6 text-white" />
-            </div>
+            <Image
+              src="https://skerjjeuapdbshgbhvrh.supabase.co/storage/v1/object/public/images/2.png"
+              alt="AppaPost Logo"
+              width={40}
+              height={40}
+              className="rounded-lg object-contain"
+              priority
+            />
             <span className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
               AppaPost
             </span>
@@ -119,9 +125,13 @@ export default function LandingPage() {
         <div className="container mx-auto px-4 py-8">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-primary to-secondary rounded-lg flex items-center justify-center">
-                <Sparkles className="w-5 h-5 text-white" />
-              </div>
+              <Image
+                src="https://skerjjeuapdbshgbhvrh.supabase.co/storage/v1/object/public/images/2.png"
+                alt="AppaPost Logo"
+                width={32}
+                height={32}
+                className="rounded-lg object-contain"
+              />
               <span className="text-xl font-bold">AppaPost</span>
             </div>
             <p className="text-sm text-muted-foreground">

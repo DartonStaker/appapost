@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    domains: ['apparely.co.za', 'res.cloudinary.com', 'cdn.shopify.com'],
+    domains: ['apparely.co.za', 'res.cloudinary.com', 'cdn.shopify.com', 'skerjjeuapdbshgbhvrh.supabase.co'],
     remotePatterns: [
       {
         protocol: 'https',
