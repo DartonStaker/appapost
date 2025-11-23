@@ -3,10 +3,12 @@ import { db } from "@/lib/db"
 import { socialAccounts, brandSettings } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { ConnectAccountButton } from "@/components/connect-account-button"
 import { AccountSettings } from "@/components/account-settings"
 import { SettingsMessages } from "@/components/settings-messages"
 import { Instagram, Facebook, Twitter, Linkedin, Music2, Image as ImageIcon } from "lucide-react"
+import Link from "next/link"
 
 const platformIcons = {
   instagram: Instagram,
@@ -87,6 +89,16 @@ export default async function SettingsPage() {
                 </div>
               )
             })}
+            <div className="pt-4 border-t border-border">
+              <p className="text-xs text-muted-foreground mb-2">
+                Need to connect manually? Some platforms like Twitter require manual token entry.
+              </p>
+              <Link href="/api/connect/manual">
+                <Button variant="outline" size="sm" className="w-full">
+                  Connect Manually
+                </Button>
+              </Link>
+            </div>
           </CardContent>
         </Card>
 

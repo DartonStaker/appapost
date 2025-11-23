@@ -3,8 +3,9 @@
 import { useEffect } from "react"
 import { useSearchParams } from "next/navigation"
 import { toast } from "sonner"
+import { Suspense } from "react"
 
-export function SettingsMessages() {
+function SettingsMessagesContent() {
   const searchParams = useSearchParams()
 
   useEffect(() => {
@@ -31,5 +32,13 @@ export function SettingsMessages() {
   }, [searchParams])
 
   return null
+}
+
+export function SettingsMessages() {
+  return (
+    <Suspense fallback={null}>
+      <SettingsMessagesContent />
+    </Suspense>
+  )
 }
 
