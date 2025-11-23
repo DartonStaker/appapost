@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/auth"
 import { createClient } from "@/lib/supabase/server"
 import { decrypt } from "@/lib/crypto"
-import { postToPlatform, getPlatformRateLimit } from "@/lib/social-clients"
+import { postToPlatform, getPlatformRateLimit, type Platform } from "@/lib/social-clients"
 import { queuePost, calculatePostDelay } from "@/lib/queue"
 
 export const dynamic = "force-dynamic"
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
       } else {
         // Post immediately (for testing)
         try {
-          const result = await postToPlatform(platform, variant, {
+          const result = await postToPlatform(platform as Platform, variant, {
             accessToken,
             refreshToken,
             ayrshareProfileId: account.ayrshare_profile_id || undefined,
