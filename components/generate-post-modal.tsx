@@ -15,7 +15,16 @@ import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
 import { Sparkles, Loader2, Send, CheckCircle2 } from "lucide-react"
 import confetti from "canvas-confetti"
-// Platform limits imported inline
+
+// Platform limits
+const PLATFORM_LIMITS: Record<string, { charLimit: number }> = {
+  instagram: { charLimit: 2200 },
+  facebook: { charLimit: 63206 },
+  twitter: { charLimit: 280 },
+  linkedin: { charLimit: 3000 },
+  tiktok: { charLimit: 150 },
+  pinterest: { charLimit: 500 },
+}
 
 const platforms = [
   { id: "instagram", name: "Instagram", limit: 2200 },

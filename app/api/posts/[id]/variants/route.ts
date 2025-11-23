@@ -9,8 +9,9 @@ export const dynamic = "force-dynamic"
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params
   try {
     const user = await getCurrentUser()
     if (!user) {
@@ -23,7 +24,7 @@ export async function GET(
     const { data: post } = await supabase
       .from("posts")
       .select("id")
-      .eq("id", params.id)
+      .eq("id", id)
       .eq("user_id", user.id)
       .single()
 
@@ -35,7 +36,7 @@ export async function GET(
     const { data: variants, error } = await supabase
       .from("post_variants")
       .select("*")
-      .eq("post_id", params.id)
+      .eq("post_id", id)
 
     if (error) {
       return NextResponse.json({ error: "Failed to fetch variants" }, { status: 500 })
