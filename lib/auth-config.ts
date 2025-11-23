@@ -5,10 +5,11 @@ import { users } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 import { createId } from "@paralleldrive/cuid2"
 
-// Basic credentials for Apparely
+// Basic credentials for Apparely - loaded from environment variables
+// If not set in env, use defaults (should be set in production)
 const APPARELY_CREDENTIALS = {
-  email: "apparelydotcoza@gmail.com",
-  password: "H@ppines5",
+  email: process.env.APPARELY_EMAIL || "apparelydotcoza@gmail.com",
+  password: process.env.APPARELY_PASSWORD || "H@ppines5",
 }
 
 export const authOptions: NextAuthOptions = {
@@ -90,6 +91,12 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt",
   },
   callbacks: {
+    async redirect({ url, baseUrl }) {
+      // Redirect to dashboard after successful sign in
+      if (url.startsWith("/")) return `${baseUrl}${url}`
+      if (new URL(url).origin === baseUrl) return url
+      return `${baseUrl}/dashboard`
+    },
     async signIn({ user }) {
       // For credentials provider, user is already created in authorize
       // Just return true to allow sign in

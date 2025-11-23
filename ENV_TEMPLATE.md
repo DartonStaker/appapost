@@ -20,7 +20,13 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzd
 # NEXTAUTH CONFIGURATION (Required)
 # ============================================
 NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=qMDvVOKcUo1WFmf+1s0+TooWb53w891uIn0SsnWksP4=
+NEXTAUTH_SECRET=generate-a-random-secret-here
+
+# ============================================
+# APPARELY CREDENTIALS (Required for login)
+# ============================================
+APPARELY_EMAIL=apparelydotcoza@gmail.com
+APPARELY_PASSWORD=H@ppines5
 
 # ============================================
 # OAUTH PROVIDERS (Optional)
