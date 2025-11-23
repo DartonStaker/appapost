@@ -88,23 +88,19 @@ export function AccountSettings({ account }: AccountSettingsProps) {
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <>
       <Badge variant={isActive ? "default" : "secondary"}>
         {isActive ? "Active" : "Inactive"}
       </Badge>
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-muted-foreground">Auto-post</span>
+      <div className="flex items-center gap-1">
+        <span className="text-xs text-muted-foreground">Auto</span>
         <Switch
           checked={autoPost}
           onCheckedChange={(checked) => handleToggle("autoPost", checked)}
           disabled={isUpdating || !isActive}
+          className="scale-75"
         />
       </div>
-      <Switch
-        checked={isActive}
-        onCheckedChange={(checked) => handleToggle("isActive", checked)}
-        disabled={isUpdating}
-      />
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogTrigger asChild>
           <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
@@ -133,7 +129,7 @@ export function AccountSettings({ account }: AccountSettingsProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   )
 }
 
