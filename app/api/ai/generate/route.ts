@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Count total variants generated (use platformData to exclude _visionFailed)
-    const totalVariants = Object.values(platformData).reduce((sum, platformVariants) => {
+    const totalVariants = Object.values(platformData).reduce<number>((sum, platformVariants) => {
       return sum + (Array.isArray(platformVariants) ? platformVariants.length : 0)
     }, 0)
     
