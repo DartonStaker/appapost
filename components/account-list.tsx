@@ -28,7 +28,7 @@ interface Account {
 
 interface AccountListProps {
   accounts: Account[]
-  platforms: Array<{ id: string; name: string; icon: any }>
+  platforms: ReadonlyArray<{ id: string; name: string; icon: any }>
 }
 
 export function AccountList({ accounts, platforms }: AccountListProps) {

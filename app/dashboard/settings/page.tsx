@@ -17,7 +17,7 @@ const platforms = [
   { id: "linkedin", name: "LinkedIn", icon: Linkedin },
   { id: "tiktok", name: "TikTok", icon: Music2 },
   { id: "pinterest", name: "Pinterest", icon: ImageIcon },
-] as const
+]
 
 export default async function SettingsPage() {
   const user = await getCurrentUser()
