@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import { Sparkles, Loader2, Send, CheckCircle2 } from "lucide-react"
 import confetti from "canvas-confetti"
@@ -67,6 +68,7 @@ export function GeneratePostModal({ postId, postTitle }: { postId: string; postT
     if (open) {
       loadVariants()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, postId])
 
   const handleGenerate = async () => {
@@ -243,7 +245,7 @@ export function GeneratePostModal({ postId, postTitle }: { postId: string; postT
                     <TabsContent key={platform.id} value={platform.id} className="space-y-4">
                       {platformVariants.length === 0 ? (
                         <p className="text-sm text-muted-foreground text-center py-8">
-                          No variants for {platform.name}. Click "Regenerate" to create them.
+                          No variants for {platform.name}. Click &quot;Regenerate&quot; to create them.
                         </p>
                       ) : (
                         <div className="space-y-3">
