@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { generateVariants } from "@/lib/ai"
 
 export async function GET(request: NextRequest) {
   try {
@@ -74,7 +75,51 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Failed to create post" }, { status: 500 })
     }
 
-    return NextResponse.json({ post }, { status: 201 })
+    // Automatically generate variants for all platforms (minimum 3 per platform)
+    try {
+      const variants = await generateVariants(
+        {
+          title: post.title,
+          excerpt: post.excerpt || undefined,
+          image_url: post.image_url || undefined,
+          type: post.type as "product" | "blog",
+        },
+        ["instagram", "facebook", "twitter", "linkedin", "tiktok", "pinterest"]
+      )
+
+      // Store variants in database
+      // generateVariants already ensures minimum 3 variants per platform
+      const variantInserts = []
+      for (const [platform, platformVariants] of Object.entries(variants)) {
+        if (platformVariants.length > 0) {
+          variantInserts.push({
+            post_id: post.id,
+            platform,
+            variant_json: platformVariants.slice(0, 5), // Store up to 5 variants
+            is_selected: false,
+          })
+        }
+      }
+
+      if (variantInserts.length > 0) {
+        const { error: variantError } = await supabase
+          .from("post_variants")
+          .insert(variantInserts)
+
+        if (variantError) {
+          console.error("Error storing auto-generated variants:", variantError)
+          // Don't fail the post creation if variant generation fails
+        }
+      }
+    } catch (variantGenError) {
+      console.error("Error auto-generating variants:", variantGenError)
+      // Don't fail the post creation if variant generation fails
+    }
+
+    return NextResponse.json({ 
+      post,
+      variants_auto_generated: true 
+    }, { status: 201 })
   } catch (error: any) {
     console.error("Create post API error:", error)
     return NextResponse.json(

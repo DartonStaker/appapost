@@ -44,7 +44,12 @@ export function CreatePostForm() {
         throw new Error(result.error || "Failed to create post")
       }
 
-      toast.success("Post created successfully!")
+      if (result.variants_auto_generated) {
+        toast.success("Post created and variants generated successfully!")
+      } else {
+        toast.success("Post created successfully!")
+      }
+      
       setOpen(false)
       setFormData({ title: "", excerpt: "", image_url: "", type: "product" })
       window.location.reload()

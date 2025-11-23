@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Instagram, Facebook, Twitter, Linkedin, Music2, Image as ImageIcon, CheckCircle2 } from "lucide-react"
 import { toast } from "sonner"
 import { SettingsMessages } from "@/components/settings-messages"
+import { Suspense } from "react"
 
 export const dynamic = "force-dynamic"
 
@@ -61,7 +62,9 @@ export default async function ConnectionsPage() {
         </p>
       </div>
 
-      <SettingsMessages />
+      <Suspense fallback={null}>
+        <SettingsMessages />
+      </Suspense>
 
       <Card>
         <CardHeader>

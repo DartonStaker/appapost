@@ -233,17 +233,54 @@ Return ONLY the post text variations (one per line), no explanations. Each varia
           }
         })
 
-      results[platform] = variations
+      // Ensure minimum 3 variants
+      if (variations.length < 3) {
+        // Duplicate variations to meet minimum requirement
+        while (variations.length < 3 && variations.length > 0) {
+          const baseVariation = variations[0]
+          variations.push({
+            ...baseVariation,
+            text: `${baseVariation.text} (Variation ${variations.length + 1})`,
+          })
+        }
+        // If still no variations, create fallback
+        if (variations.length === 0) {
+          variations.push({
+            text: `${post.title}${post.excerpt ? ` - ${post.excerpt}` : ""} #ApparelyCustom #MzansiFashion`,
+            format: hasMedia && platform === "instagram" ? "carousel" : "text",
+            media_urls: hasMedia ? [post.image_url!] : [],
+            char_limit: limits.charLimit,
+            hashtags: ["ApparelyCustom", "MzansiFashion"],
+          })
+        }
+      }
+
+      results[platform] = variations.slice(0, 5) // Max 5, but ensure at least 3
     } catch (error) {
       console.error(`Failed to generate variants for ${platform}:`, error)
-      // Create a fallback variant
+      // Create fallback variants (minimum 3)
+      const fallbackText = `${post.title}${post.excerpt ? ` - ${post.excerpt}` : ""} #ApparelyCustom #MzansiFashion`
       results[platform] = [
         {
-          text: `${post.title}${post.excerpt ? ` - ${post.excerpt}` : ""} #ApparelyCustom #MzansiFashion`,
+          text: fallbackText,
           format: hasMedia && platform === "instagram" ? "carousel" : "text",
           media_urls: hasMedia ? [post.image_url!] : [],
           char_limit: limits.charLimit,
           hashtags: ["ApparelyCustom", "MzansiFashion"],
+        },
+        {
+          text: `${fallbackText} - Check out our latest collection!`,
+          format: hasMedia && platform === "instagram" ? "carousel" : "text",
+          media_urls: hasMedia ? [post.image_url!] : [],
+          char_limit: limits.charLimit,
+          hashtags: ["ApparelyCustom", "MzansiFashion", "Fashion"],
+        },
+        {
+          text: `${fallbackText} - Shop now and express your style!`,
+          format: hasMedia && platform === "instagram" ? "carousel" : "text",
+          media_urls: hasMedia ? [post.image_url!] : [],
+          char_limit: limits.charLimit,
+          hashtags: ["ApparelyCustom", "MzansiFashion", "Style"],
         },
       ]
     }

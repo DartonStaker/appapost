@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
-import { Sparkles, Loader2, Send, CheckCircle2 } from "lucide-react"
+import { Sparkles, Loader2, Send, CheckCircle2, RefreshCw } from "lucide-react"
 import confetti from "canvas-confetti"
 
 // Platform limits
@@ -47,6 +47,7 @@ interface PostVariant {
 export function GeneratePostModal({ postId, postTitle }: { postId: string; postTitle: string }) {
   const [open, setOpen] = useState(false)
   const [generating, setGenerating] = useState(false)
+  const [regeneratingPlatform, setRegeneratingPlatform] = useState<string | null>(null)
   const [posting, setPosting] = useState(false)
   const [variants, setVariants] = useState<Record<string, PostVariant[]>>({})
   const [selectedVariants, setSelectedVariants] = useState<Record<string, number>>({})
@@ -98,6 +99,36 @@ export function GeneratePostModal({ postId, postTitle }: { postId: string; postT
       toast.error(error.message || "Failed to generate variants")
     } finally {
       setGenerating(false)
+    }
+  }
+
+  const handleRegeneratePlatform = async (platform: string) => {
+    setRegeneratingPlatform(platform)
+    try {
+      const response = await fetch(`/api/ai/generate/${platform}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ post_id: postId }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to regenerate variants")
+      }
+
+      toast.success(result.message || `Variants regenerated for ${platform}`)
+      // Reload variants to show new ones
+      await loadVariants()
+      // Clear selection for this platform
+      const newSelected = { ...selectedVariants }
+      delete newSelected[platform]
+      setSelectedVariants(newSelected)
+    } catch (error: any) {
+      console.error("Regeneration error:", error)
+      toast.error(error.message || "Failed to regenerate variants")
+    } finally {
+      setRegeneratingPlatform(null)
     }
   }
 
@@ -211,14 +242,14 @@ export function GeneratePostModal({ postId, postTitle }: { postId: string; postT
                 <p className="text-sm text-muted-foreground">
                   Select and edit variants, then post to your connected accounts
                 </p>
-                <Button onClick={handleGenerate} variant="outline" size="sm" disabled={generating}>
+                <Button onClick={handleGenerate} variant="outline" size="sm" disabled={generating || regeneratingPlatform !== null}>
                   {generating ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Regenerating...
+                      Regenerating All...
                     </>
                   ) : (
-                    "Regenerate"
+                    "Regenerate All"
                   )}
                 </Button>
               </div>
@@ -249,6 +280,36 @@ export function GeneratePostModal({ postId, postTitle }: { postId: string; postT
 
                   return (
                     <TabsContent key={platform.id} value={platform.id} className="space-y-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-sm text-muted-foreground">
+                          {platformVariants.length > 0 
+                            ? `${platformVariants.length} variant${platformVariants.length > 1 ? 's' : ''} available`
+                            : "No variants generated yet"}
+                        </p>
+                        <Button
+                          onClick={() => handleRegeneratePlatform(platform.id)}
+                          variant="outline"
+                          size="sm"
+                          disabled={regeneratingPlatform === platform.id || generating}
+                        >
+                          {regeneratingPlatform === platform.id ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Regenerating...
+                            </>
+                          ) : (
+                            <>
+                              <RefreshCw className="w-4 h-4 mr-2" />
+                              Regenerate
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                      {regeneratingPlatform === platform.id && (
+                        <div className="w-full bg-muted rounded-full h-2 mb-4">
+                          <div className="bg-primary h-2 rounded-full animate-pulse" style={{ width: '100%' }} />
+                        </div>
+                      )}
                       {platformVariants.length === 0 ? (
                         <p className="text-sm text-muted-foreground text-center py-8">
                           No variants for {platform.name}. Click &quot;Regenerate&quot; to create them.

@@ -7,6 +7,7 @@ import { Instagram, Facebook, Twitter, Linkedin, Music2, Image as ImageIcon, Ext
 import Link from "next/link"
 import { AccountList } from "@/components/account-list"
 import { BrandSettingsForm } from "@/components/brand-settings-form"
+import { Suspense } from "react"
 
 export const dynamic = "force-dynamic"
 
@@ -20,40 +21,43 @@ const platforms = [
 ]
 
 export default async function SettingsPage() {
-  const user = await getCurrentUser()
-  if (!user) return null
+  try {
+    const user = await getCurrentUser()
+    if (!user) return null
 
-  const supabase = await createClient()
+    const supabase = await createClient()
 
-  // Fetch accounts and brand settings
-  const [accountsResult, settingsResult] = await Promise.all([
-    supabase
-      .from("social_accounts")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("brand_settings")
-      .select("*")
-      .eq("user_id", user.id)
-      .maybeSingle(),
-  ])
+    // Fetch accounts and brand settings
+    const [accountsResult, settingsResult] = await Promise.all([
+      supabase
+        .from("social_accounts")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("brand_settings")
+        .select("*")
+        .eq("user_id", user.id)
+        .maybeSingle(),
+    ])
 
-  const accounts = accountsResult.data || []
-  const brandSettings = settingsResult.data || null
+    const accounts = accountsResult.data || []
+    const brandSettings = settingsResult.data || null
 
-  const connectedCount = accounts.filter((a) => a.is_active).length
+    const connectedCount = accounts.filter((a) => a.is_active).length
 
-  return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold">Settings</h1>
-        <p className="text-muted-foreground mt-2">
-          Manage your social accounts and brand settings
-        </p>
-      </div>
+    return (
+      <div className="space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold">Settings</h1>
+          <p className="text-muted-foreground mt-2">
+            Manage your social accounts and brand settings
+          </p>
+        </div>
 
-      <SettingsMessages />
+        <Suspense fallback={null}>
+          <SettingsMessages />
+        </Suspense>
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
@@ -88,5 +92,23 @@ export default async function SettingsPage() {
         <BrandSettingsForm initialSettings={brandSettings} />
       </div>
     </div>
-  )
+    )
+  } catch (error) {
+    console.error("Settings page error:", error)
+    return (
+      <div className="space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold">Settings</h1>
+          <p className="text-muted-foreground mt-2">
+            Manage your social accounts and brand settings
+          </p>
+        </div>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-destructive">Error loading settings. Please refresh the page.</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 }
