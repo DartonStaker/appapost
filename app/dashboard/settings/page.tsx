@@ -36,12 +36,11 @@ export default async function SettingsPage() {
       .from("brand_settings")
       .select("*")
       .eq("user_id", user.id)
-      .limit(1)
-      .single(),
+      .maybeSingle(),
   ])
 
   const accounts = accountsResult.data || []
-  const brandSettings = settingsResult.data
+  const brandSettings = settingsResult.data || null
 
   const connectedCount = accounts.filter((a) => a.is_active).length
 
