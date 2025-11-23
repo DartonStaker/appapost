@@ -76,7 +76,8 @@ export async function POST(
     }
 
     // Post to platform
-    const content = `${variation.content}\n\n${variation.hashtags.join(" ")}`
+    const hashtags = variation.hashtags || []
+    const content = `${variation.content}\n\n${hashtags.join(" ")}`
     const result = await platformHandlers[platform](
       account.accessToken,
       content,
