@@ -61,7 +61,11 @@ export default async function PostDetailPage({
           <Badge variant={post.status === "posted" ? "default" : "secondary"}>
             {post.status}
           </Badge>
-          <PostToAllButton postId={post.id} variations={variations} accounts={accounts} />
+          <PostToAllButton 
+            postId={post.id} 
+            variations={variations.map(v => ({ ...v, hashtags: v.hashtags || [] }))} 
+            accounts={accounts} 
+          />
         </div>
       </div>
 

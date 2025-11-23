@@ -13,7 +13,7 @@ interface PostToAllButtonProps {
     id: string
     platform: Platform
     content: string
-    hashtags: string[]
+    hashtags: string[] | null
     isSelected: boolean
   }>
   accounts: Array<{
