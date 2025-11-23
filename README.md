@@ -302,3 +302,6 @@ For issues or questions, contact the Apparely team.
 
 **Made with ❤️ for Apparely - Proudly South African**
 
+
+
+<!-- Last deployment trigger: 2025-11-23 22:51:38 -->
