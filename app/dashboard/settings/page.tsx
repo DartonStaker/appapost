@@ -3,9 +3,9 @@ import { db } from "@/lib/db"
 import { socialAccounts, brandSettings } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
-import { Badge } from "@/components/ui/badge"
+import { ConnectAccountButton } from "@/components/connect-account-button"
+import { AccountSettings } from "@/components/account-settings"
+import { SettingsMessages } from "@/components/settings-messages"
 import { Instagram, Facebook, Twitter, Linkedin, Music2, Image as ImageIcon } from "lucide-react"
 
 const platformIcons = {
@@ -44,6 +44,7 @@ export default async function SettingsPage() {
         </p>
       </div>
 
+      <SettingsMessages />
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -75,16 +76,13 @@ export default async function SettingsPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     {account && (
-                      <>
-                        <Badge variant={account.isActive ? "default" : "secondary"}>
-                          {account.isActive ? "Active" : "Inactive"}
-                        </Badge>
-                        <Switch checked={account.autoPost} disabled />
-                      </>
+                      <AccountSettings account={account} />
                     )}
-                    <Button variant={account ? "outline" : "default"} size="sm">
-                      {account ? "Reconnect" : "Connect"}
-                    </Button>
+                    <ConnectAccountButton
+                      platform={platform}
+                      isConnected={!!account}
+                      accountName={account?.accountName}
+                    />
                   </div>
                 </div>
               )
