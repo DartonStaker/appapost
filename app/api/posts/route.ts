@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
           image_url: post.image_url || undefined,
           type: post.type as "product" | "blog",
         },
-        ["instagram", "facebook", "twitter", "linkedin", "tiktok", "pinterest"],
+        ["instagram", "facebook", "x", "linkedin", "tiktok", "pinterest"], // Use "x" instead of "twitter"
         brandSettings
       )
 

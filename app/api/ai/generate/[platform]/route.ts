@@ -26,11 +26,14 @@ export async function POST(
       return NextResponse.json({ error: "Missing post_id" }, { status: 400 })
     }
 
-    // Validate platform
-    const validPlatforms: Platform[] = ["instagram", "facebook", "twitter", "linkedin", "tiktok", "pinterest"]
-    if (!validPlatforms.includes(platform as Platform)) {
+    // Validate platform and map "twitter" to "x"
+    const validPlatforms = ["instagram", "facebook", "twitter", "x", "linkedin", "tiktok", "pinterest"]
+    if (!validPlatforms.includes(platform)) {
       return NextResponse.json({ error: "Invalid platform" }, { status: 400 })
     }
+    
+    // Map "twitter" to "x" for new API
+    const mappedPlatform = (platform === "twitter" ? "x" : platform) as Platform
 
     const supabase = await createClient()
 
@@ -64,11 +67,11 @@ export async function POST(
         image_url: post.image_url || undefined,
         type: post.type as "product" | "blog",
       },
-      [platform as Platform],
+      [mappedPlatform],
       brandSettings
     )
 
-    const platformVariants = variants[platform as Platform] || []
+    const platformVariants = variants[mappedPlatform] || []
     
     // Ensure minimum 3 variants
     const minVariants = platformVariants.length >= 3 
@@ -80,7 +83,7 @@ export async function POST(
       .from("post_variants")
       .delete()
       .eq("post_id", post_id)
-      .eq("platform", platform)
+      .eq("platform", platform) // Keep original platform name in DB for compatibility
 
     // Store new variants
     if (minVariants.length > 0) {
@@ -102,9 +105,9 @@ export async function POST(
     // Determine which AI service was used
     const aiService = process.env.OLLAMA_URL ? "Ollama (local)" : process.env.GROK_API_KEY ? "Grok (xAI)" : process.env.OPENAI_API_KEY ? "OpenAI" : "Unknown"
 
-    return NextResponse.json({
+      return NextResponse.json({
       success: true,
-      variants: { [platform]: minVariants },
+      variants: { [platform]: minVariants }, // Return with original platform name
       message: `Generated ${minVariants.length} variants for ${platform} using ${aiService}`,
     })
   } catch (error: any) {

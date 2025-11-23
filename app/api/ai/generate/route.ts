@@ -47,14 +47,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate variants for all platforms or specified ones
-    const targetPlatforms = platforms || [
+    // Map "twitter" to "x" for new API, but keep legacy support
+    const targetPlatforms = (platforms || [
       "instagram",
       "facebook",
       "twitter",
       "linkedin",
       "tiktok",
       "pinterest",
-    ]
+    ]).map((p) => (p === "twitter" ? "x" : p)) as Array<"instagram" | "facebook" | "x" | "linkedin" | "tiktok" | "pinterest">
 
     // Delete existing variants for this post (to allow regeneration)
     const { error: deleteError } = await supabase

@@ -1,420 +1,481 @@
-import OpenAI from "openai"
-import axios from "axios"
+/**
+ * AppaPost AI Engine - Ollama qwen3-vl:2b Primary Brain
+ * 
+ * Single source of truth for all social media copy generation.
+ * Uses locally running Ollama with vision capabilities.
+ */
 
-const GROK_API_KEY = process.env.GROK_API_KEY
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY
+import { readFile } from "fs/promises"
+import { existsSync } from "fs"
+
+// Configuration
 const OLLAMA_URL = process.env.OLLAMA_URL || "http://localhost:11434"
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "qwen3-vl:2b"
+const GROK_API_KEY = process.env.GROK_API_KEY
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 
-// Lazy initialization of OpenAI client (only when needed and API key is available)
-function getOpenAIClient(): OpenAI | null {
-  if (!OPENAI_API_KEY) {
-    return null
-  }
-  return new OpenAI({
-    apiKey: OPENAI_API_KEY,
-  })
+// Platform type
+export type Platform = "instagram" | "facebook" | "x" | "linkedin" | "tiktok" | "pinterest"
+
+// Platform character limits
+const PLATFORM_LIMITS: Record<Platform, number> = {
+  instagram: 2200,
+  facebook: 63206,
+  x: 280,
+  linkedin: 3000,
+  tiktok: 150,
+  pinterest: 500,
 }
 
-export type Platform = "instagram" | "facebook" | "twitter" | "linkedin" | "tiktok" | "pinterest"
-
-export interface PostVariant {
+// Response types
+export interface SocialVariant {
   text: string
   format: "text" | "carousel" | "video"
   media_urls: string[]
-  char_limit: number
-  hashtags?: string[]
 }
 
-export interface Post {
+export interface PlatformVariants {
+  platform: Platform
+  variants: SocialVariant[]
+}
+
+export interface GenerateSocialVariantsParams {
   title: string
   excerpt?: string
-  image_url?: string
+  image_url?: string // Can be local file path or public URL
   type: "product" | "blog"
+  platforms?: Platform[] // Optional, defaults to all
 }
 
-/**
- * Platform-specific character limits and formats
- */
-const PLATFORM_LIMITS: Record<Platform, { charLimit: number; formats: string[] }> = {
-  instagram: { charLimit: 2200, formats: ["text", "carousel", "video"] },
-  facebook: { charLimit: 63206, formats: ["text", "carousel", "video"] },
-  twitter: { charLimit: 280, formats: ["text"] },
-  linkedin: { charLimit: 3000, formats: ["text", "carousel"] },
-  tiktok: { charLimit: 150, formats: ["video"] },
-  pinterest: { charLimit: 500, formats: ["text", "carousel"] },
-}
+// In-memory cache (last 20 prompts/results)
+const cache = new Map<string, PlatformVariants[]>()
+const CACHE_SIZE = 20
+
+// Hard-coded system prompt for perfection
+const SYSTEM_PROMPT = `You are AppaPost — the witty, proudly South African social media manager for Apparely.co.za, a custom printed apparel brand based in Mzansi.
+
+Your tone: fun, bold, cheeky, youthful, proudly local (use occasional SA slang like 'lekker', 'braai', 'eish', 'howzit' when it fits naturally).
+
+Hashtags: always include #ApparelyCustom #PrintedWithPride #MzansiFashion and 2-4 relevant ones.
+
+Call-to-action: always end with a clear CTA (shop link in bio, swipe up, tap to shop, DM us, etc).
+
+Generate 3-5 PERFECT variations for EACH requested platform with these strict limits:
+- Instagram: ≤2200 chars, carousel-friendly, line breaks + emojis encouraged
+- Facebook: ≤63206 chars, friendly and detailed
+- X/Twitter: ≤280 chars exactly (auto-trim if needed), punchy, threads if >280
+- LinkedIn: professional but warm, ≤3000 chars, focus on brand story/creativity
+- TikTok: ≤150 chars caption + 🔥 hook in first 3 seconds mindset
+- Pinterest: ≤500 chars description, keyword-rich for SEO, aesthetic vibe
+
+If an image_url is provided, describe what you "see" in the image first (qwen3-vl vision) and weave that into every caption naturally.
+
+Output ONLY valid JSON matching this TypeScript interface (no extra text, no markdown, no code blocks):
+{
+  "platform": string,
+  "variants": Array<{
+    "text": string,
+    "format": "text"|"carousel"|"video",
+    "media_urls": string[]
+  }>
+}[]
+
+Example: If image shows a bright yellow T-shirt with "Braai Master" print → every variant must reference the braai vibe, yellow colour, etc.`
 
 /**
- * Generate AI content using Ollama (local, free) with fallback to Grok/OpenAI
+ * Convert local file to base64 data URL
  */
-async function callAI(prompt: string, temperature: number = 1.2): Promise<string> {
-  const systemPrompt = `You are a professional Social Media Marketing Expert specializing in fashion and lifestyle brands, with deep expertise in:
-- Keyword research and SEO optimization for social media
-- Platform-specific content strategies (Instagram, Facebook, Twitter/X, LinkedIn, TikTok, Pinterest)
-- Trend analysis and viral content creation
-- Audience engagement and conversion optimization
-- Hashtag strategy and reach maximization
-
-You work for Apparely, a proudly South African custom apparel brand. Your content should:
-- Be creative, engaging, and authentically South African (Mzansi flair)
-- Include strategic keywords for maximum reach and discoverability
-- Use trending hashtags relevant to fashion, custom apparel, and South African culture
-- Vary tone, style, and approach across different variants for maximum diversity
-- Include compelling CTAs when appropriate
-- Optimize for each platform's unique audience and algorithm
-
-Brand voice: Fun, bold, proudly Mzansi, fashion-forward, inclusive, community-focused.
-Default hashtags: #ApparelyCustom #MzansiFashion #PrintedWithPride #SouthAfricanStyle
-
-IMPORTANT: Each variant must be UNIQUE with different:
-- Opening hooks and angles
-- Keyword combinations
-- Tone variations (playful, inspirational, informative, etc.)
-- Hashtag selections
-- Call-to-action approaches`
-
-  // Try Ollama first (local, free, unlimited)
+async function fileToBase64(filePath: string): Promise<string> {
   try {
-    console.log(`[AI] Attempting Ollama at ${OLLAMA_URL} with model ${OLLAMA_MODEL}`)
-    const response = await axios.post(
-      `${OLLAMA_URL}/api/chat`,
-      {
-        model: OLLAMA_MODEL,
-        messages: [
-          {
-            role: "system",
-            content: systemPrompt,
-          },
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-        stream: false,
-        options: {
-          temperature: temperature, // Higher temperature for more creativity (1.2-1.5)
-          num_predict: 2500, // Increased for more detailed content
-          top_p: 0.95, // Nucleus sampling for more diverse outputs
-          top_k: 40, // Top-k sampling for variety
-          repeat_penalty: 1.15, // Penalize repetition for more unique variants
-        },
-      },
-      {
-        headers: {
-          "Content-Type": "application/json",
-        },
-        timeout: 30000, // 30 second timeout
-      }
-    )
-
-    const content = response.data?.message?.content || response.data?.response || ""
-    if (content) {
-      console.log(`[AI] ✅ Successfully generated content using Ollama (${content.length} chars)`)
-      return content
-    } else {
-      console.warn("[AI] Ollama returned empty content")
+    if (!existsSync(filePath)) {
+      throw new Error(`File not found: ${filePath}`)
     }
-  } catch (error: any) {
-    // Ollama not available or error - fall through to cloud providers
-    const errorMsg = error?.response?.data?.error || error?.message || "Unknown error"
-    console.warn(`[AI] ⚠️ Ollama not available (${errorMsg}), falling back to cloud AI`)
+    const fileBuffer = await readFile(filePath)
+    const base64 = fileBuffer.toString("base64")
+    const mimeType = filePath.endsWith(".png") ? "image/png" : filePath.endsWith(".jpg") || filePath.endsWith(".jpeg") ? "image/jpeg" : "image/jpeg"
+    return `data:${mimeType};base64,${base64}`
+  } catch (error) {
+    console.error("Error converting file to base64:", error)
+    throw error
+  }
+}
+
+/**
+ * Check if image URL is local file path
+ */
+function isLocalPath(url: string): boolean {
+  return !url.startsWith("http://") && !url.startsWith("https://") && !url.startsWith("data:")
+}
+
+/**
+ * Prepare image for Ollama (convert local to base64, keep remote URLs)
+ */
+async function prepareImage(imageUrl?: string): Promise<string | undefined> {
+  if (!imageUrl) return undefined
+
+  if (isLocalPath(imageUrl)) {
+    // Local file - convert to base64
+    return await fileToBase64(imageUrl)
   }
 
-  // Fallback to Grok (xAI)
+  // Remote URL - use as-is (qwen3-vl supports remote URLs)
+  return imageUrl
+}
+
+/**
+ * Call Ollama API with vision support
+ * qwen3-vl uses images array in the message object
+ */
+async function callOllama(
+  prompt: string,
+  imageUrl?: string
+): Promise<string> {
+  const url = `${OLLAMA_URL}/api/chat`
+
+  const messages: Array<{
+    role: "system" | "user"
+    content: string
+    images?: string[]
+  }> = [
+    {
+      role: "system",
+      content: SYSTEM_PROMPT,
+    },
+  ]
+
+  // Build user message with optional image
+  if (imageUrl) {
+    // qwen3-vl uses images array in the message
+    messages.push({
+      role: "user",
+      content: prompt,
+      images: [imageUrl], // qwen3-vl format: images array with base64 or URL
+    })
+  } else {
+    messages.push({
+      role: "user",
+      content: prompt,
+    })
+  }
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: OLLAMA_MODEL,
+      messages,
+      stream: false,
+      options: {
+        temperature: 1.3, // High creativity
+        top_p: 0.95,
+        top_k: 40,
+        repeat_penalty: 1.15,
+        num_predict: 3000, // Increased for detailed responses
+      },
+    }),
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`Ollama API error: ${response.status} ${errorText}`)
+  }
+
+  const data = await response.json()
+  return data.message?.content || data.response || ""
+}
+
+/**
+ * Fallback to Grok or OpenAI if Ollama fails
+ */
+async function fallbackAI(prompt: string): Promise<string> {
+  // Try Grok first
   if (GROK_API_KEY) {
     try {
-      const response = await axios.post(
-        "https://api.x.ai/v1/chat/completions",
-        {
+      const response = await fetch("https://api.x.ai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${GROK_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
           model: "grok-beta",
           messages: [
-            {
-              role: "system",
-              content: systemPrompt,
-            },
-            {
-              role: "user",
-              content: prompt,
-            },
+            { role: "system", content: SYSTEM_PROMPT },
+            { role: "user", content: prompt },
           ],
-          temperature: temperature,
-          max_tokens: 2500,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${GROK_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-        }
-      )
+          temperature: 1.3,
+          max_tokens: 3000,
+        }),
+      })
 
-      return response.data.choices[0]?.message?.content || ""
+      if (response.ok) {
+        const data = await response.json()
+        return data.choices[0]?.message?.content || ""
+      }
     } catch (error) {
-      console.warn("Grok API failed, falling back to OpenAI:", error)
+      console.warn("Grok fallback failed:", error)
     }
   }
 
-  // Fallback to OpenAI GPT-4o-mini
-  const openai = getOpenAIClient()
-  if (openai) {
+  // Try OpenAI
+  if (OPENAI_API_KEY) {
     try {
+      const { default: OpenAI } = await import("openai")
+      const openai = new OpenAI({ apiKey: OPENAI_API_KEY })
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
-          {
-            role: "system",
-            content: systemPrompt,
-          },
-          {
-            role: "user",
-            content: prompt,
-          },
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: prompt },
         ],
-        temperature: temperature,
-        max_tokens: 2500,
+        temperature: 1.3,
+        max_tokens: 3000,
       })
-
       return completion.choices[0]?.message?.content || ""
     } catch (error) {
-      console.error("OpenAI API error:", error)
-      throw new Error("AI generation failed")
+      console.warn("OpenAI fallback failed:", error)
     }
   }
 
-  throw new Error("No AI service available (Ollama, GROK_API_KEY, or OPENAI_API_KEY required)")
+  throw new Error("All AI services unavailable")
 }
 
 /**
- * Generate platform-specific variants for a post
+ * Parse JSON response from AI (handles markdown code blocks)
+ */
+function parseAIResponse(response: string): PlatformVariants[] {
+  // Try to extract JSON from markdown code blocks if present
+  let jsonText = response.trim()
+
+  // Remove markdown code blocks
+  const codeBlockMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
+  if (codeBlockMatch) {
+    jsonText = codeBlockMatch[1].trim()
+  }
+
+  // Remove any leading/trailing non-JSON text
+  const jsonStart = jsonText.indexOf("[")
+  const jsonEnd = jsonText.lastIndexOf("]") + 1
+  if (jsonStart >= 0 && jsonEnd > jsonStart) {
+    jsonText = jsonText.substring(jsonStart, jsonEnd)
+  }
+
+  try {
+    const parsed = JSON.parse(jsonText)
+    if (!Array.isArray(parsed)) {
+      throw new Error("Response is not an array")
+    }
+    return parsed as PlatformVariants[]
+  } catch (error) {
+    console.error("Failed to parse AI response:", error)
+    console.error("Response was:", response.substring(0, 500))
+    throw new Error(`Invalid JSON response from AI: ${error instanceof Error ? error.message : "Unknown error"}`)
+  }
+}
+
+/**
+ * Enforce platform character limits
+ */
+function enforceLimits(variants: PlatformVariants[]): PlatformVariants[] {
+  return variants.map((platformData) => {
+    const limit = PLATFORM_LIMITS[platformData.platform]
+    return {
+      ...platformData,
+      variants: platformData.variants.map((variant) => ({
+        ...variant,
+        text:
+          variant.text.length > limit
+            ? variant.text.substring(0, limit - 3) + "…"
+            : variant.text,
+      })),
+    }
+  })
+}
+
+/**
+ * Generate cache key from params
+ */
+function getCacheKey(params: GenerateSocialVariantsParams): string {
+  return JSON.stringify({
+    title: params.title,
+    excerpt: params.excerpt,
+    image_url: params.image_url,
+    type: params.type,
+    platforms: params.platforms?.sort().join(",") || "all",
+  })
+}
+
+/**
+ * Main function: Generate social media variants using Ollama qwen3-vl:2b
+ */
+export async function generateSocialVariants(
+  params: GenerateSocialVariantsParams
+): Promise<PlatformVariants[]> {
+  const {
+    title,
+    excerpt,
+    image_url,
+    type,
+    platforms = ["instagram", "facebook", "x", "linkedin", "tiktok", "pinterest"],
+  } = params
+
+  // Check cache first
+  const cacheKey = getCacheKey(params)
+  if (cache.has(cacheKey)) {
+    console.log("[AI] Cache hit for:", title)
+    return cache.get(cacheKey)!
+  }
+
+  // Prepare image
+  let preparedImage: string | undefined
+  try {
+    preparedImage = await prepareImage(image_url)
+  } catch (error) {
+    console.warn("[AI] Image preparation failed, continuing without image:", error)
+  }
+
+  // Build prompt
+  const platformsList = platforms.join(", ")
+  const prompt = `Generate social media variants for Apparely ${type}:
+
+Title: ${title}
+${excerpt ? `Description: ${excerpt}` : ""}
+${preparedImage ? "An image is provided - describe what you see and weave it into every caption." : "No image provided - focus on compelling text-only content."}
+
+Generate variants for these platforms: ${platformsList}
+
+Return JSON array with one object per platform, each containing 3-5 unique variants.`
+
+  try {
+    // Try Ollama first (primary)
+    console.log(`[AI] Calling Ollama ${OLLAMA_MODEL} at ${OLLAMA_URL}`)
+    const response = await callOllama(prompt, preparedImage || undefined)
+    console.log(`[AI] ✅ Ollama response received (${response.length} chars)`)
+
+    let variants = parseAIResponse(response)
+    variants = enforceLimits(variants)
+
+    // Cache result
+    if (cache.size >= CACHE_SIZE) {
+      // Remove oldest entry (FIFO)
+      const firstKey = cache.keys().next().value
+      if (firstKey) {
+        cache.delete(firstKey)
+      }
+    }
+    cache.set(cacheKey, variants)
+
+    return variants
+  } catch (error) {
+    console.warn(`[AI] ⚠️ Ollama failed, trying fallback:`, error)
+
+    // Fallback to cloud AI (no image support in fallback)
+    try {
+      const response = await fallbackAI(prompt)
+      let variants = parseAIResponse(response)
+      variants = enforceLimits(variants)
+
+      // Cache fallback result too
+      if (cache.size >= CACHE_SIZE) {
+        const firstKey = cache.keys().next().value
+        if (firstKey) {
+          cache.delete(firstKey)
+        }
+      }
+      cache.set(cacheKey, variants)
+
+      return variants
+    } catch (fallbackError) {
+      console.error("[AI] ❌ All AI services failed")
+      throw new Error(
+        `AI generation failed: ${error instanceof Error ? error.message : "Unknown error"}`
+      )
+    }
+  }
+}
+
+/**
+ * Check if Ollama is online
+ */
+export async function checkOllamaStatus(): Promise<{ online: boolean; model?: string }> {
+  try {
+    const response = await fetch(`${OLLAMA_URL}/api/tags`, {
+      method: "GET",
+      signal: AbortSignal.timeout(3000), // 3 second timeout
+    })
+
+    if (!response.ok) {
+      return { online: false }
+    }
+
+    const data = await response.json()
+    const models = data.models || []
+    const hasModel = models.some((m: any) => m.name?.includes(OLLAMA_MODEL.split(":")[0]))
+
+    return {
+      online: true,
+      model: hasModel ? OLLAMA_MODEL : undefined,
+    }
+  } catch (error) {
+    return { online: false }
+  }
+}
+
+/**
+ * Legacy compatibility: Convert new format to old format
+ * Handles both "twitter" and "x" platform names for backward compatibility
  */
 export async function generateVariants(
-  post: Post,
-  platforms: Platform[] = ["instagram", "facebook", "twitter", "linkedin", "tiktok", "pinterest"],
+  post: { title: string; excerpt?: string; image_url?: string; type: "product" | "blog" },
+  platforms: Array<"instagram" | "facebook" | "twitter" | "x" | "linkedin" | "tiktok" | "pinterest"> = ["instagram", "facebook", "x", "linkedin", "tiktok", "pinterest"],
   brandSettings?: { brand_voice?: string; default_hashtags?: string[] } | null
-): Promise<Record<Platform, PostVariant[]>> {
-  const results: Record<Platform, PostVariant[]> = {
+): Promise<Record<"instagram" | "facebook" | "twitter" | "x" | "linkedin" | "tiktok" | "pinterest", Array<{ text: string; format: "text" | "carousel" | "video"; media_urls: string[]; char_limit: number; hashtags?: string[] }>>> {
+  // Map "twitter" to "x" for new API (qwen3-vl uses "x")
+  const mappedPlatforms = platforms.map((p) => (p === "twitter" ? "x" : p)) as Platform[]
+
+  const result = await generateSocialVariants({
+    title: post.title,
+    excerpt: post.excerpt,
+    image_url: post.image_url,
+    type: post.type,
+    platforms: mappedPlatforms,
+  })
+
+  // Convert to legacy format (support both "twitter" and "x" keys)
+  const legacyResult: Record<string, Array<{ text: string; format: "text" | "carousel" | "video"; media_urls: string[]; char_limit: number; hashtags?: string[] }>> = {
     instagram: [],
     facebook: [],
-    twitter: [],
+    twitter: [], // Keep for backward compatibility
+    x: [],
     linkedin: [],
     tiktok: [],
     pinterest: [],
   }
 
-  // Get brand voice and hashtags
-  const brandVoice = brandSettings?.brand_voice || "Fun, bold, proudly Mzansi, fashion-forward, inclusive, community-focused"
-  const defaultHashtags = brandSettings?.default_hashtags || ["ApparelyCustom", "MzansiFashion", "PrintedWithPride", "SouthAfricanStyle"]
-  const hashtagString = defaultHashtags.map((h) => `#${h}`).join(" ")
+  for (const platformData of result) {
+    const platform = platformData.platform
+    const variants = platformData.variants.map((variant) => {
+      // Extract hashtags from text
+      const hashtagRegex = /#[\w]+/g
+      const hashtags = variant.text.match(hashtagRegex)?.map((h) => h.substring(1)) || []
 
-  // Extract keywords from title and excerpt for SEO
-  const contentText = `${post.title} ${post.excerpt || ""}`.toLowerCase()
-  const keywords = [
-    ...new Set(
-      contentText
-        .split(/\s+/)
-        .filter((word) => word.length > 4 && !["with", "from", "this", "that", "your", "their"].includes(word))
-        .slice(0, 10)
-    ),
-  ]
-
-  for (const platform of platforms) {
-    const limits = PLATFORM_LIMITS[platform]
-    const hasMedia = !!post.image_url
-
-    // Platform-specific keyword strategies
-    const platformKeywords: Record<Platform, string[]> = {
-      instagram: ["fashion", "style", "ootd", "fashionista", "trending", "viral", "aesthetic", "outfit"],
-      facebook: ["community", "share", "like", "fashion", "lifestyle", "custom", "personalized"],
-      twitter: ["trending", "viral", "fashion", "style", "news", "update"],
-      linkedin: ["professional", "business", "networking", "career", "brand", "marketing"],
-      tiktok: ["viral", "trending", "fyp", "fashion", "style", "outfit", "aesthetic"],
-      pinterest: ["diy", "fashion", "style", "outfit", "inspiration", "ideas", "trends"],
-    }
-
-    // Build comprehensive, professional prompt with keyword research
-    const prompt = `As a Social Media Marketing Professional, create 5 highly creative and UNIQUE ${platform} post variations for Apparely's ${post.type}.
-
-CONTENT CONTEXT:
-Title: ${post.title}
-${post.excerpt ? `Description: ${post.excerpt}` : ""}
-${hasMedia ? "Media: Image/video available - optimize content for visual engagement" : "Media: Text-only post - focus on compelling copy"}
-
-BRAND VOICE: ${brandVoice}
-
-PLATFORM REQUIREMENTS:
-- Platform: ${platform}
-- Character limit: ${limits.charLimit} characters (strict)
-- Formats: ${limits.formats.join(", ")}
-- Target audience: ${platform === "instagram" ? "Fashion enthusiasts, style-conscious millennials/Gen Z" : platform === "linkedin" ? "Professionals, entrepreneurs, brand builders" : platform === "twitter" ? "Trend-followers, quick-engagers" : platform === "tiktok" ? "Gen Z, trend-setters, creative community" : platform === "pinterest" ? "DIY enthusiasts, style planners, inspiration seekers" : "General fashion and lifestyle audience"}
-
-KEYWORD STRATEGY:
-Primary keywords: ${keywords.join(", ")}
-Platform-specific keywords: ${platformKeywords[platform].join(", ")}
-Include these keywords naturally throughout each variation for SEO and discoverability.
-
-HASHTAG STRATEGY:
-Base hashtags: ${hashtagString}
-Add 3-5 trending/relevant hashtags per variation. Mix:
-- Brand hashtags (${defaultHashtags.slice(0, 2).map((h) => `#${h}`).join(", ")})
-- Trending fashion hashtags (#FashionSA, #StyleMzansi, #TrendingNow, etc.)
-- Niche hashtags relevant to the ${post.type} type
-- Platform-specific hashtags (${platform === "instagram" ? "#InstaFashion, #FashionGram" : platform === "tiktok" ? "#FashionTok, #StyleTok" : platform === "pinterest" ? "#FashionInspo, #StyleIdeas" : ""})
-
-CREATIVITY REQUIREMENTS:
-Each of the 5 variations MUST be completely different:
-1. Variation 1: Hook with question or bold statement, focus on ${keywords[0] || "fashion"}
-2. Variation 2: Storytelling angle, emotional connection, focus on ${keywords[1] || "style"}
-3. Variation 3: Benefit-driven, problem-solution format, focus on ${keywords[2] || "custom"}
-4. Variation 4: Trend-focused, use current social media language, focus on ${keywords[3] || "apparel"}
-5. Variation 5: Community-focused, user-generated content style, focus on ${keywords[4] || "brand"}
-
-${platform === "instagram" ? "INSTAGRAM SPECIFIC: Use emojis strategically (2-4 max), create visual descriptions, encourage saves and shares" : ""}
-${platform === "twitter" ? "TWITTER SPECIFIC: Be witty, concise, use thread potential if needed, leverage trending topics" : ""}
-${platform === "tiktok" ? "TIKTOK SPECIFIC: Use trending sounds/format references, be punchy, encourage comments and duets" : ""}
-${platform === "linkedin" ? "LINKEDIN SPECIFIC: Professional tone with personality, focus on value and insights, encourage thoughtful engagement" : ""}
-${platform === "pinterest" ? "PINTEREST SPECIFIC: SEO-rich descriptions, focus on searchability, use keywords naturally" : ""}
-
-OUTPUT FORMAT:
-Return ONLY the 5 post text variations, one per line. No numbering, no explanations, no prefixes.
-Each line should be a complete, ready-to-post social media caption with hashtags included.
-Make each variation distinctly different in tone, angle, keywords, and hashtag selection.`
-
-    try {
-      // Vary temperature slightly for each platform to increase diversity
-      const temperatureVariation = 1.2 + (Math.random() * 0.3) // 1.2 to 1.5
-      const aiResponse = await callAI(prompt, temperatureVariation)
-      
-      // Parse variations - handle different formats
-      let variations = aiResponse
-        .split("\n")
-        .map((line) => line.trim())
-        .filter((line) => {
-          // Filter out empty lines, numbers, prefixes, and explanations
-          return (
-            line.length > 20 && // Minimum length
-            !line.match(/^(Variation|Option|Version|#|1\.|2\.|3\.|4\.|5\.)/i) && // No prefixes
-            !line.match(/^(Here|This|The|Note:|Output:|Result:)/i) // No explanations
-          )
-        })
-        .slice(0, 5) // Max 5 variations
-      
-      // If we got fewer than 5, try splitting by double newlines or other patterns
-      if (variations.length < 3) {
-        const altVariations = aiResponse
-          .split(/\n\n+|---+/)
-          .map((line) => line.trim())
-          .filter((line) => line.length > 20)
-        variations = [...variations, ...altVariations].slice(0, 5)
+      return {
+        text: variant.text,
+        format: variant.format,
+        media_urls: variant.media_urls,
+        char_limit: PLATFORM_LIMITS[platform],
+        hashtags,
       }
-      
-      const processedVariations = variations.map((text, index) => {
-        // Extract hashtags
-        const hashtagRegex = /#[\w]+/g
-        const hashtags = text.match(hashtagRegex) || []
-        
-        // Keep hashtags in text for display
+    })
 
-        // Determine format based on platform and media
-        let format: "text" | "carousel" | "video" = "text"
-        if (platform === "instagram" && hasMedia) {
-          format = "carousel"
-        } else if (platform === "tiktok" && hasMedia) {
-          format = "video"
-        }
-
-        // Truncate to platform limit (but try to preserve hashtags)
-        let truncatedText = text
-        if (text.length > limits.charLimit) {
-          // Try to truncate at a word boundary before the limit
-          const truncated = text.substring(0, limits.charLimit - 50)
-          const lastSpace = truncated.lastIndexOf(" ")
-          if (lastSpace > limits.charLimit * 0.7) {
-            truncatedText = text.substring(0, lastSpace) + "..."
-          } else {
-            truncatedText = text.substring(0, limits.charLimit - 3) + "..."
-          }
-        }
-
-        return {
-          text: truncatedText,
-          format,
-          media_urls: hasMedia ? [post.image_url!] : [],
-          char_limit: limits.charLimit,
-          hashtags: hashtags.map((h) => h.substring(1).replace(/\s+/g, "")), // Remove # symbol and spaces
-        }
-      })
-
-      // Ensure minimum 3 variants
-      if (processedVariations.length < 3) {
-        // Duplicate variations to meet minimum requirement
-        while (processedVariations.length < 3 && processedVariations.length > 0) {
-          const baseVariation = processedVariations[0]
-          processedVariations.push({
-            ...baseVariation,
-            text: `${baseVariation.text} (Variation ${processedVariations.length + 1})`,
-          })
-        }
-        // If still no variations, create fallback
-        if (processedVariations.length === 0) {
-          processedVariations.push({
-            text: `${post.title}${post.excerpt ? ` - ${post.excerpt}` : ""} ${hashtagString}`,
-            format: hasMedia && platform === "instagram" ? "carousel" : "text",
-            media_urls: hasMedia ? [post.image_url!] : [],
-            char_limit: limits.charLimit,
-            hashtags: defaultHashtags.slice(0, 3),
-          })
-        }
-      }
-
-      results[platform] = processedVariations.slice(0, 5) // Max 5, but ensure at least 3
-    } catch (error) {
-      console.error(`Failed to generate variants for ${platform}:`, error)
-      // Create fallback variants (minimum 3)
-      const fallbackText = `${post.title}${post.excerpt ? ` - ${post.excerpt}` : ""} #ApparelyCustom #MzansiFashion`
-      results[platform] = [
-        {
-          text: fallbackText,
-          format: hasMedia && platform === "instagram" ? "carousel" : "text",
-          media_urls: hasMedia ? [post.image_url!] : [],
-          char_limit: limits.charLimit,
-          hashtags: ["ApparelyCustom", "MzansiFashion"],
-        },
-        {
-          text: `${fallbackText} - Check out our latest collection!`,
-          format: hasMedia && platform === "instagram" ? "carousel" : "text",
-          media_urls: hasMedia ? [post.image_url!] : [],
-          char_limit: limits.charLimit,
-          hashtags: ["ApparelyCustom", "MzansiFashion", "Fashion"],
-        },
-        {
-          text: `${fallbackText} - Shop now and express your style!`,
-          format: hasMedia && platform === "instagram" ? "carousel" : "text",
-          media_urls: hasMedia ? [post.image_url!] : [],
-          char_limit: limits.charLimit,
-          hashtags: ["ApparelyCustom", "MzansiFashion", "Style"],
-        },
-      ]
+    // Store under both "x" and "twitter" for compatibility
+    legacyResult[platform] = variants
+    if (platform === "x") {
+      legacyResult.twitter = variants // Also store under "twitter" key
     }
   }
 
-  return results
+  return legacyResult as Record<"instagram" | "facebook" | "twitter" | "x" | "linkedin" | "tiktok" | "pinterest", Array<{ text: string; format: "text" | "carousel" | "video"; media_urls: string[]; char_limit: number; hashtags?: string[] }>>
 }
-
-/**
- * Truncate text to platform limit
- */
-export function truncateForPlatform(text: string, platform: Platform): string {
-  const limit = PLATFORM_LIMITS[platform].charLimit
-  if (text.length <= limit) return text
-
-  // Try to truncate at a word boundary
-  const truncated = text.substring(0, limit - 3)
-  const lastSpace = truncated.lastIndexOf(" ")
-  if (lastSpace > limit * 0.8) {
-    return truncated.substring(0, lastSpace) + "..."
-  }
-
-  return truncated + "..."
-}
-
