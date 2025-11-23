@@ -228,6 +228,8 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { platform: string } }
 ) {
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL || 'http://localhost:3000'
+  
   try {
     const user = await getCurrentUser()
     if (!user) {
