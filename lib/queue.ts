@@ -24,8 +24,6 @@ function getRedisConnection() {
   }
 }
 
-const connection = getRedisConnection()
-
 /**
  * Posting queue for rate-limited social media posting
  * Lazy initialization to avoid build-time errors
@@ -142,7 +140,7 @@ export function createPostingWorker(processJob: (job: any) => Promise<void>) {
       await processJob(job)
     },
     {
-      connection,
+      connection: getRedisConnection(),
       concurrency: 1, // Process one post at a time to respect rate limits
     }
   )
