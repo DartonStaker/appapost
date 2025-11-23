@@ -20,19 +20,20 @@ export function useOllama() {
   useEffect(() => {
     async function checkStatus() {
       try {
-        const response = await fetch("/api/ollama/status")
-        if (response.ok) {
-          const data = await response.json()
-          setIsOnline(data.online || false)
-        } else {
-          setIsOnline(false)
-        }
-      } catch {
+        const response = await fetch("/api/ollama/status", {
+          cache: "no-store",
+        })
+        const data = await response.json()
+        setIsOnline(data.online === true) // Explicitly check for true
+      } catch (error) {
+        console.warn("[useOllama] Status check failed:", error)
         setIsOnline(false)
       }
     }
 
+    // Check immediately
     checkStatus()
+    // Then check every 10 seconds
     const interval = setInterval(checkStatus, 10000)
     return () => clearInterval(interval)
   }, [])

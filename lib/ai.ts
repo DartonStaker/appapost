@@ -585,27 +585,56 @@ Return JSON array with one object per platform, each containing 3-5 unique varia
 /**
  * Check if Ollama is online
  */
-export async function checkOllamaStatus(): Promise<{ online: boolean; model?: string }> {
+export async function checkOllamaStatus(): Promise<{ online: boolean; model?: string; error?: string }> {
+  // Skip check if OLLAMA_URL is not configured or is localhost (won't work on Vercel)
+  if (!OLLAMA_URL || OLLAMA_URL.includes("localhost") || OLLAMA_URL.includes("127.0.0.1")) {
+    // On Vercel, localhost won't work - return offline gracefully
+    if (process.env.VERCEL) {
+      return { online: false, error: "Ollama requires a publicly accessible URL on Vercel" }
+    }
+    // In local dev, still try to check
+  }
+
   try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
+
     const response = await fetch(`${OLLAMA_URL}/api/tags`, {
       method: "GET",
-      signal: AbortSignal.timeout(3000), // 3 second timeout
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+      },
     })
 
+    clearTimeout(timeoutId)
+
     if (!response.ok) {
-      return { online: false }
+      console.warn(`[Ollama] Status check failed: ${response.status} ${response.statusText}`)
+      return { online: false, error: `HTTP ${response.status}` }
     }
 
     const data = await response.json()
     const models = data.models || []
-    const hasModel = models.some((m: any) => m.name?.includes(OLLAMA_MODEL.split(":")[0]))
+    const modelName = OLLAMA_MODEL.split(":")[0]
+    const hasModel = models.some((m: any) => m.name?.includes(modelName))
 
     return {
       online: true,
       model: hasModel ? OLLAMA_MODEL : undefined,
     }
-  } catch (error) {
-    return { online: false }
+  } catch (error: any) {
+    // Handle specific error types
+    if (error.name === "AbortError") {
+      console.warn("[Ollama] Status check timed out")
+      return { online: false, error: "Connection timeout" }
+    }
+    if (error.code === "ECONNREFUSED" || error.message?.includes("ECONNREFUSED")) {
+      console.warn("[Ollama] Connection refused - Ollama may not be running")
+      return { online: false, error: "Connection refused" }
+    }
+    console.warn(`[Ollama] Status check error:`, error.message || error)
+    return { online: false, error: error.message || "Unknown error" }
   }
 }
 
