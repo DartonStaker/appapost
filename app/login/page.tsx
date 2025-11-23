@@ -29,6 +29,7 @@ function LoginContent() {
         no_session: "Session creation failed. Please check your Supabase API key and redirect URL configuration.",
         configuration_error: "Configuration error: Supabase credentials are missing. Please check your environment variables.",
         "Invalid API key": "Invalid Supabase API key. Please verify NEXT_PUBLIC_SUPABASE_ANON_KEY in Vercel settings.",
+        "invalid request: both auth code and code verifier should be non-empty": "OAuth flow error. Please try signing in again. If the issue persists, clear your browser cookies and try again.",
       }
       setErrorMessage(errorMessages[error] || `Error: ${error}`)
       // Clear the error from URL after displaying
