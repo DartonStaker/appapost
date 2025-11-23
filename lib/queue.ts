@@ -63,9 +63,18 @@ export function getQueueEvents(): QueueEvents {
   return _queueEvents
 }
 
-// Export for backward compatibility
-export const postingQueue = getPostingQueue()
-export const queueEvents = getQueueEvents()
+// Export for backward compatibility (lazy getters)
+export const postingQueue = new Proxy({} as Queue, {
+  get(target, prop) {
+    return (getPostingQueue() as any)[prop]
+  },
+})
+
+export const queueEvents = new Proxy({} as QueueEvents, {
+  get(target, prop) {
+    return (getQueueEvents() as any)[prop]
+  },
+})
 
 /**
  * Add a post job to the queue with rate limiting
