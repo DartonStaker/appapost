@@ -4,10 +4,15 @@ import { redirect } from "next/navigation"
 import { SignInForm } from "@/components/signin-form"
 
 export default async function SignInPage() {
-  const session = await getServerSession(authOptions)
+  try {
+    const session = await getServerSession(authOptions)
 
-  if (session) {
-    redirect("/dashboard")
+    if (session) {
+      redirect("/dashboard")
+    }
+  } catch (error) {
+    // If there's an error checking session, still show the sign in page
+    console.error("Error checking session:", error)
   }
 
   return (
