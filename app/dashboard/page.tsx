@@ -128,18 +128,21 @@ export default async function DashboardPage() {
             <CardDescription>Get started quickly</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
-            <Link href="/dashboard/settings">
+            <Link href="/dashboard/settings/connections">
               <Button variant="outline" className="w-full justify-start">
+                <TrendingUp className="w-4 h-4 mr-2" />
                 Connect Social Accounts
               </Button>
             </Link>
             <Link href="/dashboard/templates">
               <Button variant="outline" className="w-full justify-start">
+                <FileText className="w-4 h-4 mr-2" />
                 Manage Templates
               </Button>
             </Link>
             <Link href="/dashboard/schedule">
               <Button variant="outline" className="w-full justify-start">
+                <Calendar className="w-4 h-4 mr-2" />
                 View Schedule
               </Button>
             </Link>

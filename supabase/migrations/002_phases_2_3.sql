@@ -21,6 +21,18 @@ CREATE TABLE IF NOT EXISTS post_variants (
   UNIQUE(post_id, platform)
 );
 
+-- Create templates table for AI prompt templates
+CREATE TABLE IF NOT EXISTS templates (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  name TEXT NOT NULL,
+  platform TEXT NOT NULL,
+  prompt TEXT NOT NULL,
+  is_default BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
 -- Create posting_queue table for tracking queued posts
 CREATE TABLE IF NOT EXISTS posting_queue (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -36,8 +48,26 @@ CREATE TABLE IF NOT EXISTS posting_queue (
 );
 
 -- Enable RLS on new tables
+ALTER TABLE templates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE post_variants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE posting_queue ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies for templates
+CREATE POLICY "Users can view own templates"
+  ON templates FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create own templates"
+  ON templates FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own templates"
+  ON templates FOR UPDATE
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own templates"
+  ON templates FOR DELETE
+  USING (auth.uid() = user_id);
 
 -- RLS Policies for post_variants
 CREATE POLICY "Users can view own post variants"
@@ -112,6 +142,8 @@ CREATE POLICY "Users can update own queue items"
   );
 
 -- Indexes for better performance
+CREATE INDEX IF NOT EXISTS templates_user_id_idx ON templates(user_id);
+CREATE INDEX IF NOT EXISTS templates_platform_idx ON templates(platform);
 CREATE INDEX IF NOT EXISTS post_variants_post_id_idx ON post_variants(post_id);
 CREATE INDEX IF NOT EXISTS post_variants_platform_idx ON post_variants(platform);
 CREATE INDEX IF NOT EXISTS posting_queue_post_id_idx ON posting_queue(post_id);
