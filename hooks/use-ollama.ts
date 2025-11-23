@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 
 /**
  * Simple React hook to check Ollama status live
- * Uses hybrid approach: tries client-side direct check first, falls back to API route
+ * Works on both localhost and remote (Vercel) by trying direct check first
  * 
  * @example
  * ```tsx
@@ -20,7 +20,7 @@ export function useOllama() {
 
   useEffect(() => {
     async function checkStatus() {
-      // Try direct client-side check first (works when browser can reach localhost)
+      // Always try direct check first (works on localhost, may work on remote if CORS allows)
       try {
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), 2000) // 2 second timeout
@@ -28,7 +28,8 @@ export function useOllama() {
         const response = await fetch("http://localhost:11434/api/tags", {
           method: "GET",
           signal: controller.signal,
-          mode: "cors", // Explicitly request CORS
+          // Don't set mode: "cors" - let browser handle it
+          // If CORS blocks it, we'll catch the error and fall back
         })
 
         clearTimeout(timeoutId)
@@ -40,17 +41,25 @@ export function useOllama() {
           return // Success, exit early
         }
       } catch (error: any) {
-        // CORS or connection error - try API route as fallback
-        // (This handles cases where CORS blocks direct access)
+        // CORS error or connection refused - try API route fallback
+        // Don't log CORS errors as they're expected when Ollama doesn't have CORS enabled
+        if (!error.message?.includes("Failed to fetch") && !error.message?.includes("CORS")) {
+          console.debug("[useOllama] Direct check failed:", error.message)
+        }
       }
 
-      // Fallback: use API route (works in dev, but won't work on Vercel for localhost)
+      // Fallback: use API route (works in local dev, but won't work on Vercel for localhost)
       try {
         const response = await fetch("/api/ollama/status", {
           cache: "no-store",
         })
         const data = await response.json()
-        setIsOnline(data.online === true)
+        // Only set online if API route explicitly says online (not just "clientCheck: true")
+        if (data.online === true) {
+          setIsOnline(true)
+        } else {
+          setIsOnline(false)
+        }
       } catch (error) {
         setIsOnline(false)
       }
