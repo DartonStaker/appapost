@@ -2,8 +2,10 @@ import { redirect } from "next/navigation"
 import { getCurrentUser } from "@/lib/auth"
 import { DashboardNav } from "@/components/dashboard-nav"
 import { ThemeToggle } from "@/components/theme-toggle"
-import { Sparkles } from "lucide-react"
+import { Sparkles, LogOut } from "lucide-react"
 import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { LogoutButton } from "@/components/logout-button"
 
 export default async function DashboardLayout({
   children,
@@ -29,12 +31,13 @@ export default async function DashboardLayout({
                 AppaPost
               </span>
             </Link>
-            <div className="flex items-center gap-4">
-              <ThemeToggle />
-              <div className="text-sm text-muted-foreground">
-                {user.email}
-              </div>
+          <div className="flex items-center gap-4">
+            <ThemeToggle />
+            <div className="text-sm text-muted-foreground">
+              {user.email}
             </div>
+            <LogoutButton />
+          </div>
           </div>
         </header>
         <div className="container mx-auto px-4 py-8">

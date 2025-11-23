@@ -1,13 +1,24 @@
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth-config"
+import { createClient } from "@/lib/supabase/server"
 
 export async function getCurrentUser() {
-  try {
-    const session = await getServerSession(authOptions)
-    return session?.user || null
-  } catch (error) {
-    console.error("Error getting current user:", error)
-    return null
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) return null
+
+  // Get user profile
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", user.id)
+    .single()
+
+  return {
+    id: user.id,
+    email: user.email!,
+    name: profile?.full_name || user.email!,
+    image: profile?.avatar_url || null,
   }
 }
-

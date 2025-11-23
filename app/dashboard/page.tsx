@@ -1,31 +1,37 @@
 import { getCurrentUser } from "@/lib/auth"
-import { db } from "@/lib/db"
-import { posts, scheduledPosts, socialAccounts } from "@/lib/db/schema"
-import { eq, desc, count } from "drizzle-orm"
+import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { FileText, Calendar, CheckCircle, TrendingUp } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { toast } from "sonner"
 
 export default async function DashboardPage() {
   const user = await getCurrentUser()
   if (!user) return null
 
-  try {
-    const [totalPosts, scheduledCount, postedCount, activeAccounts] = await Promise.all([
-      db.select({ count: count() }).from(posts).catch(() => [{ count: 0 }]),
-      db.select({ count: count() }).from(scheduledPosts).where(eq(scheduledPosts.status, "scheduled")).catch(() => [{ count: 0 }]),
-      db.select({ count: count() }).from(scheduledPosts).where(eq(scheduledPosts.status, "posted")).catch(() => [{ count: 0 }]),
-      db.select({ count: count() }).from(socialAccounts).where(eq(socialAccounts.isActive, true)).catch(() => [{ count: 0 }]),
-    ])
+  const supabase = await createClient()
 
-    const recentPosts = await db
-      .select()
-      .from(posts)
-      .where(eq(posts.userId, user.id!))
-      .orderBy(desc(posts.createdAt))
-      .limit(5)
-      .catch(() => [])
+  try {
+    // Fetch all stats in parallel
+    const [
+      { count: totalPosts },
+      { count: scheduledCount },
+      { count: postedCount },
+      { count: connectedCount },
+      { data: recentPosts },
+    ] = await Promise.all([
+      supabase.from("posts").select("*", { count: "exact", head: true }).eq("user_id", user.id),
+      supabase.from("schedules").select("*", { count: "exact", head: true }),
+      supabase.from("posts").select("*", { count: "exact", head: true }).eq("user_id", user.id).eq("status", "posted"),
+      supabase.from("social_accounts").select("*", { count: "exact", head: true }).eq("user_id", user.id),
+      supabase
+        .from("posts")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(5),
+    ])
 
   return (
     <div className="space-y-8">
@@ -43,7 +49,7 @@ export default async function DashboardPage() {
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalPosts[0]?.count || 0}</div>
+            <div className="text-2xl font-bold">{totalPosts || 0}</div>
             <p className="text-xs text-muted-foreground">All time</p>
           </CardContent>
         </Card>
@@ -54,7 +60,7 @@ export default async function DashboardPage() {
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{scheduledCount[0]?.count || 0}</div>
+            <div className="text-2xl font-bold">{scheduledCount || 0}</div>
             <p className="text-xs text-muted-foreground">Upcoming posts</p>
           </CardContent>
         </Card>
@@ -65,7 +71,7 @@ export default async function DashboardPage() {
             <CheckCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{postedCount[0]?.count || 0}</div>
+            <div className="text-2xl font-bold">{postedCount || 0}</div>
             <p className="text-xs text-muted-foreground">Successfully posted</p>
           </CardContent>
         </Card>
@@ -76,7 +82,7 @@ export default async function DashboardPage() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{activeAccounts[0]?.count || 0}</div>
+            <div className="text-2xl font-bold">{connectedCount || 0}</div>
             <p className="text-xs text-muted-foreground">Active accounts</p>
           </CardContent>
         </Card>
@@ -89,16 +95,19 @@ export default async function DashboardPage() {
             <CardDescription>Your latest content</CardDescription>
           </CardHeader>
           <CardContent>
-            {recentPosts.length === 0 ? (
+            {!recentPosts || recentPosts.length === 0 ? (
               <p className="text-sm text-muted-foreground">No posts yet. Create your first post!</p>
             ) : (
               <div className="space-y-4">
-                {recentPosts.map((post) => (
+                {recentPosts.map((post: any) => (
                   <div key={post.id} className="flex items-center justify-between">
                     <div>
                       <p className="font-medium">{post.title}</p>
                       <p className="text-sm text-muted-foreground">
-                        {post.contentType} • {post.status}
+                        {post.type} • {post.status}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(post.created_at).toLocaleDateString()}
                       </p>
                     </div>
                     <Link href={`/dashboard/posts/${post.id}`}>

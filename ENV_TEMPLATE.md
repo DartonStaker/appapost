@@ -4,17 +4,14 @@ Copy this to your `.env.local` file and fill in the values:
 
 ```env
 # ============================================
-# SUPABASE DATABASE CONNECTION (Required)
+# SUPABASE CLIENT (Required for Phase 1)
 # ============================================
-# Get this from: Supabase Dashboard → Settings → Database → Connection string (URI)
-# Replace [YOUR_PASSWORD] with your actual database password
-DATABASE_URL=postgresql://postgres:[YOUR_PASSWORD]@db.skerjjeuapdbshgbhvrh.supabase.co:5432/postgres
+# Get these from: Supabase Dashboard → Settings → API
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
 
-# ============================================
-# SUPABASE CLIENT (Optional - for future Supabase features)
-# ============================================
-NEXT_PUBLIC_SUPABASE_URL=https://skerjjeuapdbshgbhvrh.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNrZXJqamV1YXBkYnNoZ2JodnJoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM3NDIzNzEsImV4cCI6MjA3OTMxODM3MX0._jEnAlrRNGhomHixKzZBuffkz-osMDHFNNapmJTOcuE
+# Optional: For direct database access (if needed)
+DATABASE_URL=postgresql://postgres:[YOUR_PASSWORD]@db.your-project.supabase.co:5432/postgres
 
 # ============================================
 # NEXTAUTH CONFIGURATION (Required)
