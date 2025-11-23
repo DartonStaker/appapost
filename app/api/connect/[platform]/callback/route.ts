@@ -18,7 +18,8 @@ async function exchangeToken(
   accountId: string
   accountName: string
 }> {
-  const redirectUri = `${process.env.NEXTAUTH_URL}/api/connect/${platform}/callback`
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL || 'http://localhost:3000'
+  const redirectUri = `${baseUrl}/api/connect/${platform}/callback`
 
   switch (platform) {
     case "instagram": {
@@ -231,7 +232,7 @@ export async function GET(
     const user = await getCurrentUser()
     if (!user) {
       return NextResponse.redirect(
-        `${process.env.NEXTAUTH_URL}/api/auth/signin?error=Unauthorized`
+        `${baseUrl}/login?error=Unauthorized`
       )
     }
 
@@ -243,13 +244,13 @@ export async function GET(
 
     if (error) {
       return NextResponse.redirect(
-        `${process.env.NEXTAUTH_URL}/dashboard/settings?error=${encodeURIComponent(error)}`
+        `${baseUrl}/dashboard/settings?error=${encodeURIComponent(error)}`
       )
     }
 
     if (!code || !state) {
       return NextResponse.redirect(
-        `${process.env.NEXTAUTH_URL}/dashboard/settings?error=missing_code_or_state`
+        `${baseUrl}/dashboard/settings?error=missing_code_or_state`
       )
     }
 
@@ -257,7 +258,7 @@ export async function GET(
     const cookieState = request.cookies.get(`oauth_state_${platform}`)?.value
     if (cookieState !== state) {
       return NextResponse.redirect(
-        `${process.env.NEXTAUTH_URL}/dashboard/settings?error=invalid_state`
+        `${baseUrl}/dashboard/settings?error=invalid_state`
       )
     }
 
@@ -308,7 +309,7 @@ export async function GET(
 
     // Clear state cookie
     const response = NextResponse.redirect(
-      `${process.env.NEXTAUTH_URL}/dashboard/settings?success=${platform}_connected`
+      `${baseUrl}/dashboard/settings?success=${platform}_connected`
     )
     response.cookies.delete(`oauth_state_${platform}`)
 
@@ -316,7 +317,7 @@ export async function GET(
   } catch (error: any) {
     console.error("OAuth callback error:", error)
     return NextResponse.redirect(
-      `${process.env.NEXTAUTH_URL}/dashboard/settings?error=${encodeURIComponent(error.message || "oauth_failed")}`
+      `${baseUrl}/dashboard/settings?error=${encodeURIComponent(error.message || "oauth_failed")}`
     )
   }
 }

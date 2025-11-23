@@ -6,31 +6,31 @@ import { Platform } from "@/types"
 const OAUTH_URLS: Record<Platform, (state: string) => string> = {
   instagram: (state) => {
     const clientId = process.env.INSTAGRAM_APP_ID
-    const redirectUri = `${process.env.NEXTAUTH_URL}/api/connect/instagram/callback`
+    const redirectUri = `${process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL || 'http://localhost:3000'}/api/connect/instagram/callback`
     return `https://api.instagram.com/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=user_profile,user_media&response_type=code&state=${state}`
   },
   facebook: (state) => {
     const clientId = process.env.FACEBOOK_APP_ID
-    const redirectUri = `${process.env.NEXTAUTH_URL}/api/connect/facebook/callback`
+    const redirectUri = `${process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL || 'http://localhost:3000'}/api/connect/facebook/callback`
     return `https://www.facebook.com/v18.0/dialog/oauth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=pages_manage_posts,pages_read_engagement&state=${state}`
   },
   twitter: (state) => {
     // Twitter uses OAuth 1.0a - requires server-side flow
-    return `${process.env.NEXTAUTH_URL}/api/connect/twitter/authorize?state=${state}`
+    return `${process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL || 'http://localhost:3000'}/api/connect/twitter/authorize?state=${state}`
   },
   linkedin: (state) => {
     const clientId = process.env.LINKEDIN_CLIENT_ID
-    const redirectUri = `${process.env.NEXTAUTH_URL}/api/connect/linkedin/callback`
+    const redirectUri = `${process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL || 'http://localhost:3000'}/api/connect/linkedin/callback`
     return `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&scope=r_liteprofile%20r_emailaddress%20w_member_social`
   },
   tiktok: (state) => {
     const clientKey = process.env.TIKTOK_CLIENT_KEY
-    const redirectUri = `${process.env.NEXTAUTH_URL}/api/connect/tiktok/callback`
+    const redirectUri = `${process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL || 'http://localhost:3000'}/api/connect/tiktok/callback`
     return `https://www.tiktok.com/v2/auth/authorize?client_key=${clientKey}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=user.info.basic,video.upload&state=${state}`
   },
   pinterest: (state) => {
     const appId = process.env.PINTEREST_APP_ID
-    const redirectUri = `${process.env.NEXTAUTH_URL}/api/connect/pinterest/callback`
+    const redirectUri = `${process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL || 'http://localhost:3000'}/api/connect/pinterest/callback`
     return `https://www.pinterest.com/oauth/?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=boards:read,pins:read,pins:write&state=${state}`
   },
 }
