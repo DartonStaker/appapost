@@ -30,7 +30,28 @@ function AuthCallbackContent() {
 
       if (code) {
         try {
-          console.log("Exchanging code for session...", { codeLength: code.length })
+          // Verify Supabase client is initialized
+          const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+          const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+          
+          if (!supabaseUrl || !supabaseKey) {
+            console.error("Supabase environment variables not set:", {
+              hasUrl: !!supabaseUrl,
+              hasKey: !!supabaseKey,
+            })
+            const loginUrl = process.env.NEXT_PUBLIC_SITE_URL 
+              ? `${process.env.NEXT_PUBLIC_SITE_URL}/login?error=configuration_error`
+              : `/login?error=configuration_error`
+            window.location.href = loginUrl
+            return
+          }
+
+          console.log("Exchanging code for session...", { 
+            codeLength: code.length,
+            supabaseUrl: supabaseUrl.substring(0, 30) + "...",
+            hasKey: !!supabaseKey,
+          })
+          
           const { data, error } = await supabase.auth.exchangeCodeForSession(code)
           
           if (error) {
@@ -40,6 +61,9 @@ function AuthCallbackContent() {
               status: error.status,
               name: error.name,
             })
+            console.error("Supabase URL:", supabaseUrl)
+            console.error("Request failed - check Network tab for full error details")
+            
             const errorMsg = error.message || "auth_failed"
             const loginUrl = process.env.NEXT_PUBLIC_SITE_URL 
               ? `${process.env.NEXT_PUBLIC_SITE_URL}/login?error=${encodeURIComponent(errorMsg)}`

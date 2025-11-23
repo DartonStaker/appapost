@@ -77,10 +77,20 @@ function LoginContent() {
     setIsGoogleLoading(true)
 
     try {
+      // Verify Supabase client is initialized
+      if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+        console.error("Supabase environment variables not set")
+        toast.error("Configuration error: Supabase credentials missing. Please check environment variables.")
+        setIsGoogleLoading(false)
+        return
+      }
+
       // Use environment variable for production, fallback to window.location for dev
       const redirectUrl = process.env.NEXT_PUBLIC_SITE_URL 
         ? `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/dashboard`
         : `${window.location.origin}/auth/callback?next=/dashboard`
+
+      console.log("Initiating Google OAuth with redirect:", redirectUrl)
 
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
@@ -95,6 +105,11 @@ function LoginContent() {
 
       if (error) {
         console.error("Google OAuth error:", error)
+        console.error("Error details:", {
+          message: error.message,
+          status: error.status,
+          name: error.name,
+        })
         throw error
       }
 
@@ -102,7 +117,8 @@ function LoginContent() {
       // The setIsGoogleLoading(false) won't be reached, which is fine
     } catch (error: any) {
       console.error("Google login error:", error)
-      toast.error(error.message || "Failed to sign in with Google. Please check if Google provider is enabled in Supabase.")
+      const errorMsg = error?.message || "Failed to sign in with Google. Please check if Google provider is enabled in Supabase."
+      toast.error(errorMsg)
       setIsGoogleLoading(false)
     }
   }
