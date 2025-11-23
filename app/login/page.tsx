@@ -61,16 +61,27 @@ export default function LoginPage() {
     setIsGoogleLoading(true)
 
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            access_type: "offline",
+            prompt: "consent",
+          },
         },
       })
 
-      if (error) throw error
+      if (error) {
+        console.error("Google OAuth error:", error)
+        throw error
+      }
+
+      // Note: signInWithOAuth redirects automatically, so we don't need to handle success
+      // The setIsGoogleLoading(false) won't be reached, which is fine
     } catch (error: any) {
-      toast.error(error.message || "Failed to sign in with Google")
+      console.error("Google login error:", error)
+      toast.error(error.message || "Failed to sign in with Google. Please check if Google provider is enabled in Supabase.")
       setIsGoogleLoading(false)
     }
   }
