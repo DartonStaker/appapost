@@ -109,13 +109,14 @@ export default async function ConnectionsPage() {
               Ayrshare provides unified posting across all platforms. Once connected, you can post to multiple
               platforms simultaneously. Free tier includes limited posts. Upgrade to Pro ($29/mo) for unlimited posting.
             </p>
-            <Button
-              variant="link"
-              className="p-0 mt-2 h-auto"
-              onClick={() => window.open("https://www.ayrshare.com", "_blank")}
+            <a
+              href="https://www.ayrshare.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-primary hover:underline mt-2 inline-block"
             >
               Learn more about Ayrshare →
-            </Button>
+            </a>
           </div>
         </CardContent>
       </Card>

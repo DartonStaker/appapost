@@ -1,44 +1,49 @@
 import { getCurrentUser } from "@/lib/auth"
-import { db } from "@/lib/db"
-import { socialAccounts, brandSettings } from "@/lib/db/schema"
-import { eq } from "drizzle-orm"
+import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ConnectAccountButton } from "@/components/connect-account-button"
-import { AccountSettings } from "@/components/account-settings"
 import { SettingsMessages } from "@/components/settings-messages"
-import { Instagram, Facebook, Twitter, Linkedin, Music2, Image as ImageIcon } from "lucide-react"
+import { Instagram, Facebook, Twitter, Linkedin, Music2, Image as ImageIcon, ExternalLink } from "lucide-react"
 import Link from "next/link"
+import { AccountList } from "@/components/account-list"
+import { BrandSettingsForm } from "@/components/brand-settings-form"
 
-const platformIcons = {
-  instagram: Instagram,
-  facebook: Facebook,
-  twitter: Twitter,
-  linkedin: Linkedin,
-  tiktok: Music2,
-  pinterest: ImageIcon,
-}
-
-// Force dynamic rendering
 export const dynamic = "force-dynamic"
+
+const platforms = [
+  { id: "instagram", name: "Instagram", icon: Instagram },
+  { id: "facebook", name: "Facebook", icon: Facebook },
+  { id: "twitter", name: "X (Twitter)", icon: Twitter },
+  { id: "linkedin", name: "LinkedIn", icon: Linkedin },
+  { id: "tiktok", name: "TikTok", icon: Music2 },
+  { id: "pinterest", name: "Pinterest", icon: ImageIcon },
+] as const
 
 export default async function SettingsPage() {
   const user = await getCurrentUser()
   if (!user) return null
 
-  const [accounts, settings] = await Promise.all([
-    db.select().from(socialAccounts).where(eq(socialAccounts.userId, user.id!)),
-    db.select().from(brandSettings).where(eq(brandSettings.userId, user.id!)).limit(1),
+  const supabase = await createClient()
+
+  // Fetch accounts and brand settings
+  const [accountsResult, settingsResult] = await Promise.all([
+    supabase
+      .from("social_accounts")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("brand_settings")
+      .select("*")
+      .eq("user_id", user.id)
+      .limit(1)
+      .single(),
   ])
 
-  const platforms: Array<"instagram" | "facebook" | "twitter" | "linkedin" | "tiktok" | "pinterest"> = [
-    "instagram",
-    "facebook",
-    "twitter",
-    "linkedin",
-    "tiktok",
-    "pinterest",
-  ]
+  const accounts = accountsResult.data || []
+  const brandSettings = settingsResult.data
+
+  const connectedCount = accounts.filter((a) => a.is_active).length
 
   return (
     <div className="space-y-8">
@@ -50,105 +55,39 @@ export default async function SettingsPage() {
       </div>
 
       <SettingsMessages />
+
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Social Accounts</CardTitle>
-            <CardDescription>
-              Connect your social media accounts
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Social Accounts</CardTitle>
+                <CardDescription>
+                  {connectedCount} of {platforms.length} platforms connected
+                </CardDescription>
+              </div>
+              <Link href="/dashboard/settings/connections">
+                <Button variant="outline" size="sm">
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Manage
+                </Button>
+              </Link>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {platforms.map((platform) => {
-              const account = accounts.find((a) => a.platform === platform)
-              const Icon = platformIcons[platform]
-
-              return (
-                <div
-                  key={platform}
-                  className="flex items-center justify-between p-4 border border-border rounded-lg"
-                >
-                  <div className="flex items-center gap-3">
-                    <Icon className="w-5 h-5" />
-                    <div>
-                      <p className="font-medium capitalize">{platform}</p>
-                      {account ? (
-                        <p className="text-sm text-muted-foreground">{account.accountName}</p>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">Not connected</p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {account && (
-                      <AccountSettings account={account} />
-                    )}
-                    <ConnectAccountButton
-                      platform={platform}
-                      isConnected={!!account}
-                      accountName={account?.accountName}
-                    />
-                  </div>
-                </div>
-              )
-            })}
-            <div className="pt-4 border-t border-border">
-              <p className="text-xs text-muted-foreground mb-2">
-                Need to connect manually? Some platforms like Twitter require manual token entry.
-              </p>
-              <Link href="/dashboard/connect/manual">
-                <Button variant="outline" size="sm" className="w-full">
-                  Connect Manually
+          <CardContent>
+            <AccountList accounts={accounts} platforms={platforms} />
+            <div className="pt-4 border-t border-border mt-4">
+              <Link href="/dashboard/settings/connections">
+                <Button variant="outline" className="w-full">
+                  Connect More Accounts
                 </Button>
               </Link>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Brand Settings</CardTitle>
-            <CardDescription>
-              Configure your brand voice and defaults
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <label className="text-sm font-medium">Brand Voice</label>
-              <textarea
-                className="w-full mt-2 p-3 border border-border rounded-md bg-background"
-                rows={4}
-                placeholder="Describe your brand voice..."
-                defaultValue={settings[0]?.brandVoice || ""}
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Default Hashtags</label>
-              <input
-                type="text"
-                className="w-full mt-2 p-3 border border-border rounded-md bg-background"
-                placeholder="#ApparelyCustom #PrintedWithPride..."
-                defaultValue={settings[0]?.defaultHashtags?.join(" ") || ""}
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Webhook URL</label>
-              <input
-                type="text"
-                className="w-full mt-2 p-3 border border-border rounded-md bg-background"
-                placeholder="https://appapost.vercel.app/api/webhook/apparely"
-                defaultValue={settings[0]?.webhookUrl || ""}
-                readOnly
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Use this URL in your Apparely store webhook settings
-              </p>
-            </div>
-            <Button className="w-full">Save Settings</Button>
-          </CardContent>
-        </Card>
+        <BrandSettingsForm initialSettings={brandSettings} />
       </div>
     </div>
   )
 }
-

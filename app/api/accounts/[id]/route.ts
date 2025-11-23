@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/auth"
-import { db } from "@/lib/db"
-import { socialAccounts } from "@/lib/db/schema"
-import { eq, and } from "drizzle-orm"
+import { createClient } from "@/lib/supabase/server"
 
-// Update account settings (toggle active, autopost, etc.)
+export const dynamic = "force-dynamic"
+
+/**
+ * Update account settings (is_active, auto_post)
+ */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await getCurrentUser()
@@ -15,46 +17,53 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
+    const { id } = await params
     const body = await request.json()
-    const { isActive, autoPost } = body
+    const { is_active, auto_post } = body
 
-    // Verify account belongs to user
-    const [account] = await db
-      .select()
-      .from(socialAccounts)
-      .where(
-        and(eq(socialAccounts.id, params.id), eq(socialAccounts.userId, user.id!))
-      )
-      .limit(1)
+    const supabase = await createClient()
 
-    if (!account) {
+    // Verify ownership
+    const { data: existing } = await supabase
+      .from("social_accounts")
+      .select("id")
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .single()
+
+    if (!existing) {
       return NextResponse.json({ error: "Account not found" }, { status: 404 })
     }
 
     // Update account
-    await db
-      .update(socialAccounts)
-      .set({
-        isActive: isActive !== undefined ? isActive : account.isActive,
-        autoPost: autoPost !== undefined ? autoPost : account.autoPost,
-        updatedAt: new Date(),
-      })
-      .where(eq(socialAccounts.id, params.id))
+    const updates: any = {}
+    if (is_active !== undefined) updates.is_active = is_active
+    if (auto_post !== undefined) updates.auto_post = auto_post
 
-    return NextResponse.json({ success: true })
+    const { data: account, error } = await supabase
+      .from("social_accounts")
+      .update(updates)
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .select()
+      .single()
+
+    if (error) {
+      return NextResponse.json({ error: "Failed to update account" }, { status: 500 })
+    }
+
+    return NextResponse.json({ account })
   } catch (error: any) {
-    console.error("Account update error:", error)
-    return NextResponse.json(
-      { error: error.message || "Failed to update account" },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: error.message || "Failed to update account" }, { status: 500 })
   }
 }
 
-// Delete/disconnect account
+/**
+ * Delete (disconnect) an account
+ */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await getCurrentUser()
@@ -62,29 +71,22 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Verify account belongs to user
-    const [account] = await db
-      .select()
-      .from(socialAccounts)
-      .where(
-        and(eq(socialAccounts.id, params.id), eq(socialAccounts.userId, user.id!))
-      )
-      .limit(1)
+    const { id } = await params
+    const supabase = await createClient()
 
-    if (!account) {
-      return NextResponse.json({ error: "Account not found" }, { status: 404 })
+    // Verify ownership and delete
+    const { error } = await supabase
+      .from("social_accounts")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", user.id)
+
+    if (error) {
+      return NextResponse.json({ error: "Failed to delete account" }, { status: 500 })
     }
-
-    // Delete account
-    await db.delete(socialAccounts).where(eq(socialAccounts.id, params.id))
 
     return NextResponse.json({ success: true })
   } catch (error: any) {
-    console.error("Account deletion error:", error)
-    return NextResponse.json(
-      { error: error.message || "Failed to delete account" },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: error.message || "Failed to delete account" }, { status: 500 })
   }
 }
-

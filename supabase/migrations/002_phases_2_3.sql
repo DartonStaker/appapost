@@ -1,5 +1,37 @@
 -- Migration for Phases 2-3: Social connections + AI generation
 
+-- Create brand_settings table if it doesn't exist
+CREATE TABLE IF NOT EXISTS brand_settings (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  brand_voice TEXT,
+  default_hashtags TEXT[] DEFAULT ARRAY[]::TEXT[],
+  webhook_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  UNIQUE(user_id)
+);
+
+-- Enable RLS on brand_settings
+ALTER TABLE brand_settings ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies for brand_settings
+CREATE POLICY "Users can view own brand settings"
+  ON brand_settings FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create own brand settings"
+  ON brand_settings FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own brand settings"
+  ON brand_settings FOR UPDATE
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own brand settings"
+  ON brand_settings FOR DELETE
+  USING (auth.uid() = user_id);
+
 -- Extend social_accounts table for Ayrshare integration
 ALTER TABLE social_accounts 
   ADD COLUMN IF NOT EXISTS ayrshare_profile_id TEXT,
