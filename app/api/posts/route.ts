@@ -97,17 +97,22 @@ export async function POST(request: NextRequest) {
 
       // Store variants in database
       // generateVariants already ensures minimum 3 variants per platform
-      const variantInserts = []
-      for (const [platform, platformVariants] of Object.entries(variants)) {
-        if (platformVariants.length > 0) {
-          variantInserts.push({
-            post_id: post.id,
-            platform,
-            variant_json: platformVariants.slice(0, 5), // Store up to 5 variants
-            is_selected: false,
-          })
-        }
-      }
+      // Safely extract platform variants — ignores hidden metadata like _visionFailed
+      const { _visionFailed, ...platformData } = variants as any
+      
+      const variantInserts = Object.entries(platformData)
+        .filter(([platform]) => platform !== "_visionFailed")
+        .flatMap(([platform, vars]) => {
+          if (Array.isArray(vars) && vars.length > 0) {
+            return [{
+              post_id: post.id,
+              platform,
+              variant_json: vars.slice(0, 5), // Store up to 5 variants
+              is_selected: false,
+            }]
+          }
+          return []
+        })
 
       if (variantInserts.length > 0) {
         const { error: variantError } = await supabase

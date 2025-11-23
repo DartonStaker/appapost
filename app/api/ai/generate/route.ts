@@ -84,20 +84,22 @@ export async function POST(request: NextRequest) {
 
     // Store variants in database
     // Note: Since schema has UNIQUE(post_id, platform), we store all variants for a platform as a JSON array
-    // Destructure to separate the _visionFailed flag from platform variants
-    const { _visionFailed, ...platformVariantsObj } = variants
+    // Safely extract platform variants — ignores hidden metadata like _visionFailed
+    const { _visionFailed, ...platformData } = variants as any
     
-    const variantInserts = Object.entries(platformVariantsObj).flatMap(([platform, vars]) => {
-      if (Array.isArray(vars) && vars.length > 0) {
-        return [{
-          post_id: post_id,
-          platform,
-          variant_json: vars,
-          is_selected: false,
-        }]
-      }
-      return []
-    })
+    const variantInserts = Object.entries(platformData)
+      .filter(([platform]) => platform !== "_visionFailed")
+      .flatMap(([platform, vars]) => {
+        if (Array.isArray(vars) && vars.length > 0) {
+          return [{
+            post_id: post_id,
+            platform,
+            variant_json: vars,
+            is_selected: false,
+          }]
+        }
+        return []
+      })
 
     if (variantInserts.length > 0) {
       const { error: insertError } = await supabase
@@ -110,8 +112,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Count total variants generated (use platformVariantsObj to exclude _visionFailed)
-    const totalVariants = Object.values(platformVariantsObj).reduce((sum, platformVariants) => {
+    // Count total variants generated (use platformData to exclude _visionFailed)
+    const totalVariants = Object.values(platformData).reduce((sum, platformVariants) => {
       return sum + (Array.isArray(platformVariants) ? platformVariants.length : 0)
     }, 0)
     
