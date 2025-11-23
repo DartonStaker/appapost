@@ -1,13 +1,15 @@
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth-config"
 import { redirect } from "next/navigation"
 import { SignInForm } from "@/components/signin-form"
+import { getCurrentUser } from "@/lib/auth"
+
+// Force dynamic rendering
+export const dynamic = "force-dynamic"
 
 export default async function SignInPage() {
   try {
-    const session = await getServerSession(authOptions)
+    const user = await getCurrentUser()
 
-    if (session) {
+    if (user) {
       redirect("/dashboard")
     }
   } catch (error) {

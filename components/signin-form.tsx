@@ -24,14 +24,16 @@ export function SignInForm() {
       const result = await signIn("credentials", {
         email,
         password,
-        redirect: true,
-        callbackUrl: "/dashboard",
+        redirect: false,
       })
 
-      // If redirect is true, signIn will handle the redirect
-      // Only show error if there's an actual error
       if (result?.error) {
         toast.error("Invalid email or password")
+        setIsLoading(false)
+      } else if (result?.ok) {
+        toast.success("Signed in successfully!")
+        // Use window.location for a full page reload to ensure session is set
+        window.location.href = "/dashboard"
       }
     } catch (error) {
       toast.error("An error occurred. Please try again.")
