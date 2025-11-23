@@ -9,6 +9,7 @@ import { LogoutButton } from "@/components/logout-button"
 import Image from "next/image"
 
 // Force dynamic rendering for dashboard routes
+// Deployment trigger
 export const dynamic = "force-dynamic"
 
 export default async function DashboardLayout({
